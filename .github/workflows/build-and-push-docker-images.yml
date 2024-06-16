@@ -30,6 +30,11 @@ jobs:
           ref: '8221e51b2e43e077dfa06d7dab6f1cf5a5fb15bf'
           path: 'foundation-source'
 
+      - name: list files
+        run: |
+          pwd
+          ls -l
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
 
