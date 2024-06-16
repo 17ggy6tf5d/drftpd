@@ -135,7 +135,7 @@ public class VirtualFileSystem {
 
         _root = new VirtualFileSystemRoot("drftpd", "drftpd");
         File rootFile = new File(fileSystemPath);
-        String fileList = rootFile.list(dirFilter);
+        String[] fileList = rootFile.list(dirFilter);
         if (fileList == null) {
             logger.fatal("Error getting rootDirectory file list " + fileSystemPath);
             throw new FatalException("Error getting rootDirectory file list " + fileSystemPath);
