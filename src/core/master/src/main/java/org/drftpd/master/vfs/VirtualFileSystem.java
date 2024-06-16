@@ -129,16 +129,16 @@ public class VirtualFileSystem {
         File rootPath = new File(fileSystemPath);
         Boolean created = rootPath.mkdirs();
         if (!created && !rootPath.exists()) {
-            logger.fatal("Error creating root filesystem " + fileSystemPath);
-            throw new FatalException("Error creating root filesystem " + fileSystemPath);
+            logger.fatal("Error creating root filesystem: " + fileSystemPath);
+            throw new FatalException("Error creating root filesystem: " + fileSystemPath);
         }
 
         _root = new VirtualFileSystemRoot("drftpd", "drftpd");
         File rootFile = new File(fileSystemPath);
         String[] fileList = rootFile.list(dirFilter);
         if (fileList == null) {
-            logger.fatal("Error getting rootDirectory file list " + fileSystemPath);
-            throw new FatalException("Error getting rootDirectory file list " + fileSystemPath);
+            logger.fatal("Error getting rootDirectory file list for: " + fileSystemPath);
+            throw new FatalException("Error getting rootDirectory file list for: " + fileSystemPath);
         }
 
         _root.setFiles(fileList);
