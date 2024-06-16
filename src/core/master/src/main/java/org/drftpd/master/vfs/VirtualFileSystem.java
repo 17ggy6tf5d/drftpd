@@ -125,10 +125,12 @@ public class VirtualFileSystem {
         logger.info("Creating new root filesystem");
         logger.info("If you have already created your filesystem, then stop removing or corrupting your "
                 + dirName + " file!");
-        Boolean created = new File(fileSystemPath).mkdirs();
-        if (!created) {
-            logger.fatal("Error creating root filesystem " + dirName);
-            throw new FatalException("Error creating root filesystem " + dirName);
+
+        File rootPath = new File(fileSystemPath);
+        Boolean created = rootPath.mkdirs();
+        if (!created && !rootPath.exists()) {
+            logger.fatal("Error creating root filesystem " + fileSystemPath);
+            throw new FatalException("Error creating root filesystem " + fileSystemPath);
         }
         _root = new VirtualFileSystemRoot("drftpd", "drftpd");
         File rootFile = new File(fileSystemPath);
