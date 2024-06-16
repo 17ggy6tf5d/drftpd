@@ -5,6 +5,7 @@ RUN set -ux \
 
 # build mkvalidator from ./foundation-source
 FROM baseimage AS foundation
+RUN mkdir /foundation-source
 COPY foundation-source /foundation-source
 RUN set -ux \
     && apk update \
@@ -19,6 +20,7 @@ RUN set -ux \
 
 # build drftpd from ./drftpd-source
 FROM baseimage AS drftpd-build
+RUN mkdir /drftpd-source
 COPY drftpd-source /drftpd-source
 RUN set -ux \
     && apk update \
