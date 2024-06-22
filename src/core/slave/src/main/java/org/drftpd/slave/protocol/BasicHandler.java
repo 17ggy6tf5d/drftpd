@@ -60,8 +60,8 @@ public class BasicHandler extends AbstractHandler {
     // The following variables are static as they are used to signal between
     // remerging and the pause/resume functions, due to the way the handler
     // map works these are run against separate object instances.
-    private static final AtomicBoolean remergePaused = new AtomicBoolean();
-    private static final AtomicBoolean _remerging = new AtomicBoolean();
+    private static final AtomicBoolean remergePaused = new AtomicBoolean(false);
+    private static final AtomicBoolean _remerging = new AtomicBoolean(false);
     private final ThreadPoolExecutor _pool;
     private static final Object remergeWaitObj = new Object();
     private static final Object mergeDepthWaitObj = new Object();
@@ -70,9 +70,6 @@ public class BasicHandler extends AbstractHandler {
 
     public BasicHandler(SlaveProtocolCentral central) {
         super(central);
-
-        // Initialize us as not remerging
-        _remerging.set(false);
 
         // Get the amount of concurrent threads our threadpool can run at
         // We start with 1 as a default and only increase if we are running threaded remerge mode
@@ -228,7 +225,7 @@ public class BasicHandler extends AbstractHandler {
      * 4: instantOnline (boolean)
      */
     public AsyncResponse handleRemerge(AsyncCommandArgument ac) {
-        if (_remerging.get()) {
+        if (!_remerging.compareAndSet(false, true)) {
             logger.warn("Received remerge request while we are remerging");
             return new AsyncResponseException(ac.getIndex(), new Exception("Already remerging"));
         }
@@ -262,7 +259,6 @@ public class BasicHandler extends AbstractHandler {
             logger.info(remergeDecision);
             sendResponse(new AsyncResponseSiteBotMessage(remergeDecision));
 
-            _remerging.set(true);
             // Start with a empty list!
             mergeDepth.clear();
             logger.debug("Remerging started");
@@ -331,9 +327,10 @@ public class BasicHandler extends AbstractHandler {
             }
 
             logger.debug("Remerging done");
-            _remerging.set(false);
             // Make sure we do not hog memory and clear the list
             mergeDepth.clear();
+
+            _remerging.set(false);
             return new AsyncResponse(ac.getIndex());
         } catch (Throwable e) {
             logger.error("Exception during merging", e);
