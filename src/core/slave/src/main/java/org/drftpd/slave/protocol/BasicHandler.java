@@ -60,8 +60,8 @@ public class BasicHandler extends AbstractHandler {
     // The following variables are static as they are used to signal between
     // remerging and the pause/resume functions, due to the way the handler
     // map works these are run against separate object instances.
-    private static final AtomicBoolean remergePaused = new AtomicBoolean(false);
-    private static final AtomicBoolean _remerging = new AtomicBoolean(false);
+    private static final AtomicBoolean remergePaused = new AtomicBoolean();
+    private static final AtomicBoolean _remerging = new AtomicBoolean();
     private final ThreadPoolExecutor _pool;
     private static final Object remergeWaitObj = new Object();
     private static final Object mergeDepthWaitObj = new Object();
@@ -70,6 +70,9 @@ public class BasicHandler extends AbstractHandler {
 
     public BasicHandler(SlaveProtocolCentral central) {
         super(central);
+
+        // Initialize us as not remerging
+        _remerging.set(false);
 
         // Get the amount of concurrent threads our threadpool can run at
         // We start with 1 as a default and only increase if we are running threaded remerge mode
@@ -225,7 +228,7 @@ public class BasicHandler extends AbstractHandler {
      * 4: instantOnline (boolean)
      */
     public AsyncResponse handleRemerge(AsyncCommandArgument ac) {
-        if (!_remerging.compareAndSet(false, true)) {
+        if (_remerging.get()) {
             logger.warn("Received remerge request while we are remerging");
             return new AsyncResponseException(ac.getIndex(), new Exception("Already remerging"));
         }
@@ -259,6 +262,7 @@ public class BasicHandler extends AbstractHandler {
             logger.info(remergeDecision);
             sendResponse(new AsyncResponseSiteBotMessage(remergeDecision));
 
+            _remerging.set(true);
             // Start with a empty list!
             mergeDepth.clear();
             logger.debug("Remerging started");
@@ -312,25 +316,24 @@ public class BasicHandler extends AbstractHandler {
                     }
                 }
 
-                // Do not do a busy loop when we are not sending anything to master, better to sleep for 0.2 second
-                logger.debug("We have sent {} respponses to master", sentResponses);
+                // Do not do a busy loop when we are not sending anything to master, better to sleep for 0.2 seconds
+                logger.debug("We have sent {} responses to master", sentResponses);
                 if (sentResponses <= 1) {
                     try {
                         logger.debug("Queue: {}, Active threads: {}, Pending responses: {}, sleeping 0.2 second",
                                 _pool.getQueue().size(), _pool.getActiveCount(), remergeResponses.size());
                         Thread.sleep(200);
                     } catch (InterruptedException e) {
-                        // Either we have been woken properly in which case we will exit the
-                        // loop or we have not in which case we will wait again.
+                        // Either we have been woken properly, in which case we will exit the loop,
+                        // or we have not, in which case we will wait again.
                     }
                 }
             }
 
             logger.debug("Remerging done");
+            _remerging.set(false);
             // Make sure we do not hog memory and clear the list
             mergeDepth.clear();
-
-            _remerging.set(false);
             return new AsyncResponse(ac.getIndex());
         } catch (Throwable e) {
             logger.error("Exception during merging", e);
@@ -486,7 +489,7 @@ public class BasicHandler extends AbstractHandler {
                     }
                 } catch (IOException e) {
                     logger.warn("You have a symbolic link that couldn't be read at {} -- these are ignored by drftpd", fullPath);
-                    sendResponse(new AsyncResponseSiteBotMessage("You have a symbolic link thacouldn't be read at " + fullPath + " -- these are ignored by drftpd"));
+                    sendResponse(new AsyncResponseSiteBotMessage("You have a symbolic link that couldn't be read at " + fullPath + " -- these are ignored by drftpd"));
                     continue;
                 }
                 if (_partialRemerge && file.lastModified() > _skipAgeCutoff) {
