@@ -185,6 +185,7 @@ public class RootCollection {
                 if (rootFiles[i] != null) {
                     if (!pathsToIgnore.isEmpty()) {
                         for (String file : rootFiles[i]) {
+                            logger.trace("Testing path: " + path + " file: " + file);
                             if (!ignorePath(file)) {
                                 files.add(file);
                             }
@@ -201,6 +202,7 @@ public class RootCollection {
                 if (rootFiles != null) {
                     if (!pathsToIgnore.isEmpty()) {
                         for (String file : rootFiles) {
+                            logger.trace("Testing path: " + path + " file: " + file);
                             if (!ignorePath(file)) {
                                 files.add(file);
                             }
