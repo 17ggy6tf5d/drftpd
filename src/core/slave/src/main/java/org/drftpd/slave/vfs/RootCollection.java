@@ -38,6 +38,7 @@ public class RootCollection {
     private ArrayList<Root> _roots;
     private Slave _slave;
     private ThreadPoolExecutor _pool;
+    private ArrayList<Pattern> pathsToIgnore;
 
     public RootCollection(Slave slave, Collection<Root> roots) throws IOException {
         /** sanity checks * */
@@ -50,6 +51,21 @@ public class RootCollection {
                 new LinkedBlockingQueue<>(), new RootListHandlerThreadFactory(),
                 new ThreadPoolExecutor.CallerRunsPolicy());
         _pool.allowCoreThreadTimeOut(true);
+
+        pathsToIgnore = new ArrayList<Pattern>();
+        Properties p = slave.getConfig();
+        for (int i = 1; ; i++) {
+            String pattern = p.getProperty("slave.pathstoignore." + i);
+            if (pattern = nul)
+                break;
+
+            try {
+                pathsToIgnore.add(Pattern.compile(pattern));
+            }
+            catch (PatternSyntaxException e) {
+                logger.error("Error compiling regex pattern for slave.pathstoignore." + i + ": " + pattern, e);
+            }
+        }
     }
 
     private static void validateRoots(Collection<Root> roots) throws IOException {
