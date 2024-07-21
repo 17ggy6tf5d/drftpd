@@ -58,7 +58,7 @@ public class RootCollection {
         Properties p = slave.getConfig();
         for (int i = 1; ; i++) {
             String pattern = p.getProperty("slave.pathstoignore." + i);
-            if (pattern = null)
+            if (pattern == null)
                 break;
 
             try {
