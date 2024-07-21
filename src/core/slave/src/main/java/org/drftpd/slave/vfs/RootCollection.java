@@ -149,7 +149,7 @@ public class RootCollection {
     }
 
     private boolean ignorePath(String path) {
-        logger.Debug("Testing " + path);
+        logger.debug("Testing " + path);
         for (Pattern pattern : pathsToIgnore) {
             if (pattern.matcher(path).matches()) {
                 logger.trace("Ignoring " + path);
