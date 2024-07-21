@@ -147,6 +147,15 @@ public class RootCollection {
         }
     }
 
+    private Boolean ignorePath(String path) {
+        for (Pattern pattern : pathsToIgnore) {
+            if (pattern.matcher(path).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Returns a sorted (alphabetical) list of inodes in the path given
      *
@@ -172,7 +181,15 @@ public class RootCollection {
             }
             for (int i = 0; i < _roots.size(); i++) {
                 if (rootFiles[i] != null) {
-                    files.addAll(Arrays.asList(rootFiles[i]));
+                    if (!pathsToIgnore.isEmpty()) {
+                        for (String file : rootFiles[i]) {
+                            if (!ignorePath(file)) {
+                                files.add(file);
+                            }
+                        }
+                    } else {
+                        files.addAll(Arrays.asList(rootFiles[i]));
+                    }
                 }
             }
         } else {
@@ -180,7 +197,15 @@ public class RootCollection {
                 File rootPath = _roots.get(i).getFile(path);
                 String[] rootFiles = rootPath.list();
                 if (rootFiles != null) {
-                    files.addAll(Arrays.asList(rootFiles));
+                    if (!pathsToIgnore.isEmpty()) {
+                        for (String file : rootFiles) {
+                            if (!ignorePath(file)) {
+                                files.add(file);
+                            }
+                        }
+                    } else {
+                        files.addAll(Arrays.asList(rootFiles));
+                    }
                 }
             }
         }
