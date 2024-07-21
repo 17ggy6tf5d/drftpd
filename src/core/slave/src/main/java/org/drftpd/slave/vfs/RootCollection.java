@@ -63,6 +63,7 @@ public class RootCollection {
 
             try {
                 pathsToIgnore.add(Pattern.compile(pattern));
+                logger.debug("Added ignore pattern " + pattern);
             }
             catch (PatternSyntaxException e) {
                 logger.error("Error compiling regex pattern for slave.pathstoignore." + i + ": " + pattern, e);
