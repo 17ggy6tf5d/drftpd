@@ -151,7 +151,7 @@ public class RootCollection {
     private boolean ignorePath(String path) {
         for (Pattern pattern : pathsToIgnore) {
             if (pattern.matcher(path).matches()) {
-                logger.trace("ignoring " + path);
+                logger.trace("Ignoring " + path);
                 return true;
             }
         }
@@ -185,8 +185,7 @@ public class RootCollection {
                 if (rootFiles[i] != null) {
                     if (!pathsToIgnore.isEmpty()) {
                         for (String file : rootFiles[i]) {
-                            logger.trace("Testing path: " + path + " file: " + file);
-                            if (!ignorePath(file)) {
+                            if (!ignorePath(path + File.separatorChar + file)) {
                                 files.add(file);
                             }
                         }
@@ -202,8 +201,7 @@ public class RootCollection {
                 if (rootFiles != null) {
                     if (!pathsToIgnore.isEmpty()) {
                         for (String file : rootFiles) {
-                            logger.trace("Testing path: " + path + " file: " + file);
-                            if (!ignorePath(file)) {
+                            if (!ignorePath(path + File.separatorChar + file)) {
                                 files.add(file);
                             }
                         }
