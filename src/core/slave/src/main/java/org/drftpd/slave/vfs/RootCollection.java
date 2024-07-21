@@ -148,9 +148,10 @@ public class RootCollection {
         }
     }
 
-    private Boolean ignorePath(String path) {
+    private boolean ignorePath(String path) {
         for (Pattern pattern : pathsToIgnore) {
             if (pattern.matcher(path).matches()) {
+                logger.trace("ignoring " + path);
                 return true;
             }
         }
