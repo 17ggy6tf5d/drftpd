@@ -33,6 +33,7 @@ import org.drftpd.common.slave.TransferStatus;
 import org.drftpd.slave.Slave;
 import org.drftpd.slave.network.*;
 import org.drftpd.slave.vfs.RootCollection;
+import org.drftpd.slave.vfs.Root;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -40,11 +41,20 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.sql.Array;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.FileVisitResult;
+import java.nio.file.attribute.BasicFileAttributes;
+
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Basic operations handling.
@@ -228,11 +238,27 @@ public class BasicHandler extends AbstractHandler {
      * 4: instantOnline (boolean)
      */
     public AsyncResponse handleRemerge(AsyncCommandArgument ac) {
-        if (_remerging.get()) {
+        if (!_remerging.compareAndSet(false, true))
+        {
             logger.warn("Received remerge request while we are remerging");
             return new AsyncResponseException(ac.getIndex(), new Exception("Already remerging"));
         }
         try {
+            logger.debug("Remerging start");
+            WalkFileTree wft = new WalkFileTree(getSlaveObject().getConfig());
+            var roots = getSlaveObject().getRoots().getRootList();
+            for (Root root : roots) {
+                wft.Walk(root.getPath());
+            }
+            List<AsyncResponseRemerge> rrs = wft.getWalkResult();
+            for (var rr : rrs) {
+                sendResponse(rr);
+            }
+
+            logger.debug("Remerging done");
+            _remerging.set(false);
+            return new AsyncResponse(ac.getIndex());
+/*            
             // Slave Protocol central calls this with a dedicated thread which we give the lowest possible priority
             Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
 
@@ -335,6 +361,7 @@ public class BasicHandler extends AbstractHandler {
             // Make sure we do not hog memory and clear the list
             mergeDepth.clear();
             return new AsyncResponse(ac.getIndex());
+*/
         } catch (Throwable e) {
             logger.error("Exception during merging", e);
             sendResponse(new AsyncResponseSiteBotMessage("Exception during merging"));
@@ -489,7 +516,7 @@ public class BasicHandler extends AbstractHandler {
                     }
                 } catch (IOException e) {
                     logger.warn("You have a symbolic link that couldn't be read at {} -- these are ignored by drftpd", fullPath);
-                    sendResponse(new AsyncResponseSiteBotMessage("You have a symbolic link thacouldn't be read at " + fullPath + " -- these are ignored by drftpd"));
+                    sendResponse(new AsyncResponseSiteBotMessage("You have a symbolic link that couldn't be read at " + fullPath + " -- these are ignored by drftpd"));
                     continue;
                 }
                 if (_partialRemerge && file.lastModified() > _skipAgeCutoff) {
@@ -550,4 +577,204 @@ public class BasicHandler extends AbstractHandler {
             return _arr;
         }
     }
+
+    public class WalkFileTree extends SimpleFileVisitor<Path>
+    {
+        private List<Pattern> _directoryPathsToIgnore;
+        private List<Pattern> _filePathsToIgnore;
+
+        private List<Pattern> CompileRegExPatterns(List<String> patterns) {
+            var result = new ArrayList<Pattern>();
+
+            for (String pattern : patterns)
+            {
+                if (pattern == null)
+                    continue;
+
+                try {
+                    result.add(Pattern.compile(pattern));
+                }
+                catch (PatternSyntaxException e) {
+                    logger.error("Error compiling regex pattern: " + pattern, e);
+                }
+            }
+
+            return result;
+        }
+
+        public WalkFileTree(Properties properties)
+        {
+            List<String> directoryPathsToIgnore = new ArrayList<String>();
+            List<String> filePathsToIgnore = new ArrayList<String>();
+
+            for (int i = 1; ; i++) {
+                String pattern = properties.getProperty("slave.pathstoignore." + i);
+                String type = properties.getProperty("slave.pathstoignore." + i + ".type");
+                if (pattern == null)
+                    break;
+    
+                if (type.equalsIgnoreCase("directory")) {
+                    directoryPathsToIgnore.add(pattern);
+                }
+                else if (type.equalsIgnoreCase("file")) {
+                    filePathsToIgnore.add(pattern);
+                }
+            }
+
+            _directoryPathsToIgnore = CompileRegExPatterns(directoryPathsToIgnore);
+            _filePathsToIgnore = CompileRegExPatterns(filePathsToIgnore);
+        }
+
+        private boolean ignorePath(List<Pattern> patterns, String path) {
+            for (Pattern pattern : patterns) {
+                if (pattern.matcher(path).matches()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean ignoreDirectory(String path) {
+            return ignorePath(_directoryPathsToIgnore, path);
+        }
+
+        private boolean ignoreFile(String path) {
+            return ignorePath(_filePathsToIgnore, path);
+        }
+
+        private HashMap<Path, BasicFileAttributes> _directories = new HashMap<Path, BasicFileAttributes>();
+        private LinkedList<WalkFileTree.FileInfo> _files = new LinkedList<WalkFileTree.FileInfo>();
+
+        public List<AsyncResponseRemerge> getWalkResult() {
+            var files = new HashMap<String, List<LightRemoteInode>>();
+            var lastModified = new HashMap<String, Long>();
+
+            _directories.forEach((dir, attr) -> {
+                files.put(dir.toString(), new LinkedList<LightRemoteInode>());
+                lastModified.put(dir.toString(), attr.lastModifiedTime().toMillis());
+            });
+            for (var fi : _files) {
+                String parentPath = fi.path.getParent().toString();
+                var dirFiles = files.get(parentPath);
+                if (dirFiles == null) {
+                    dirFiles = new LinkedList<LightRemoteInode>();
+                    lastModified.put(parentPath, (long)0);
+                }
+                var inode = new LightRemoteInode(
+                    fi.path.getFileName().toString(),
+                    "drftpd",
+                    "drftpd",
+                    false,
+                    fi.attr.lastModifiedTime().toMillis(),
+                    fi.attr.size()
+                );
+                dirFiles.add(inode);
+                files.put(parentPath, dirFiles);
+            }
+
+            var result = new LinkedList<AsyncResponseRemerge>();
+            files.forEach((dir, inodes) -> {
+                var lm = lastModified.getOrDefault(dir, (long)0);
+                var arr = new AsyncResponseRemerge(dir, inodes, lm);
+                result.add(arr);
+            });
+
+            result.sort(new Comparator<AsyncResponseRemerge>() {
+                public int compare(AsyncResponseRemerge s1, AsyncResponseRemerge s2) {
+                    if (s1.getPath().equals(s2.getPath()))
+                    {
+                        return 0;
+                    }
+                    long s1sepcount = s1.getPath().codePoints().filter(ch -> ch == '/').count();
+                    long s2sepcount = s2.getPath().codePoints().filter(ch -> ch == '/').count();
+                    
+                    if (s1sepcount > s2sepcount) {
+                        return -1;
+                    }
+                    else if (s1sepcount > s2sepcount) {
+                        return 1;
+                    }
+                    else {
+                        return 0;
+                    }
+                }
+            });
+
+            return result;
+        }
+
+        public void Walk(String path) throws IOException
+        {
+            Path _path = Paths.get(path);
+            Files.walkFileTree(_path, this);
+        }
+
+        public class FileInfo {
+            public final Path path;
+            public final BasicFileAttributes attr;
+
+            public FileInfo(Path path, BasicFileAttributes attr) {
+                this.path = path;
+                this.attr = attr;
+            }
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(
+            Path dir,
+            BasicFileAttributes attrs
+        )
+        {
+            if (ignoreDirectory(dir.toString())) {
+                return FileVisitResult.SKIP_SUBTREE;
+            }
+
+            _directories.putIfAbsent(dir, attrs);
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFile(
+            Path file,
+            BasicFileAttributes attrs)
+        {
+            if (ignoreFile(file.toString())) {
+                return FileVisitResult.CONTINUE;
+            }
+
+
+            if (attrs.isSymbolicLink()) {
+                // we ignore all symlinks
+            }
+            else if (attrs.isRegularFile()) {
+                var fi = new FileInfo(file, attrs);
+                _files.add(fi);
+            }
+
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(
+            Path dir,
+            IOException exc
+        )
+        {
+            if (exc != null) {
+                logger.error("Failed to visit directory: " + dir.toString(), exc);
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(
+            Path file,
+            IOException exc
+        )
+        {
+            logger.error("Failed to visit file: " + file.toString(), exc);
+            return FileVisitResult.CONTINUE;
+        }
+    }
+
 }
