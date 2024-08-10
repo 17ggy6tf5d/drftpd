@@ -613,10 +613,10 @@ public class BasicHandler extends AbstractHandler {
                 if (pattern == null)
                     break;
     
-                if (type.equalsIgnoreCase("directory")) {
+                if ("directory".equalsIgnoreCase(type)) {
                     directoryPathsToIgnore.add(pattern);
                 }
-                else if (type.equalsIgnoreCase("file")) {
+                else if ("file".equalsIgnoreCase(type)) {
                     filePathsToIgnore.add(pattern);
                 }
             }
