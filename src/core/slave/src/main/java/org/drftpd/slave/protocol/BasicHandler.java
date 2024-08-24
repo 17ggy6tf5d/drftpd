@@ -691,8 +691,7 @@ public class BasicHandler extends AbstractHandler {
             // master expects results depth first
             result.sort(new Comparator<AsyncResponseRemerge>() {
                 public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
-                    if (o1.getPath().equals(o2.getPath()))
-                    {
+                    if (o1.getPath().equals(o2.getPath())) {
                         return 0;
                     }
                     long s1sepcount = o1.getPath().codePoints().filter(ch -> ch == '/').count();
@@ -788,6 +787,10 @@ public class BasicHandler extends AbstractHandler {
 
                 AddDir(dir, attrs);
 
+                // Master expects subdirectories to appear in file list
+                var fi = new FileInfo(dir, attrs, rootRelativePath, rootRelativeParentPath);
+                _files.add(fi);
+
                 return FileVisitResult.CONTINUE;
             }
             catch (IllegalArgumentException e) {
@@ -803,7 +806,7 @@ public class BasicHandler extends AbstractHandler {
         {
             try {
                 String rootRelativePath = GetRootRelativePathString(file);
-                String parentPath = GetRootRelativePathString(file.getParent());
+                String rootRelativeParentPath = GetRootRelativePathString(file.getParent());
 
                 if (attrs.isRegularFile() && ignoreFile(rootRelativePath)) {
                     return FileVisitResult.CONTINUE;
@@ -818,7 +821,7 @@ public class BasicHandler extends AbstractHandler {
                 else if (attrs.isRegularFile()) {
                     AddDir(file.getParent(), null);
 
-                    var fi = new FileInfo(file, attrs, rootRelativePath, parentPath);
+                    var fi = new FileInfo(file, attrs, rootRelativePath, rootRelativeParentPath);
                     _files.add(fi);
                 }
                 else if (attrs.isDirectory()) {
