@@ -779,9 +779,10 @@ public class BasicHandler extends AbstractHandler {
         )
         {
             try {
-                String path = GetRootRelativePathString(dir);
+                String rootRelativePath = GetRootRelativePathString(file);
+                String rootRelativeParentPath = GetRootRelativePathString(file.getParent());
 
-                if (ignoreDirectory(path)) {
+                if (ignoreDirectory(rootRelativePath)) {
                     return FileVisitResult.SKIP_SUBTREE;
                 }
 
