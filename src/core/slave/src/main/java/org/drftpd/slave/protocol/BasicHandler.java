@@ -780,17 +780,18 @@ public class BasicHandler extends AbstractHandler {
         {
             try {
                 String rootRelativePath = GetRootRelativePathString(dir);
-                String rootRelativeParentPath = GetRootRelativePathString(dir.getParent());
-
                 if (ignoreDirectory(rootRelativePath)) {
                     return FileVisitResult.SKIP_SUBTREE;
                 }
 
                 AddDir(dir, attrs);
 
-                // Master expects subdirectories to appear in file list
-                var fi = new FileInfo(dir, attrs, rootRelativePath, rootRelativeParentPath);
-                _files.add(fi);
+                if ((rootRelativePath != "") && (rootRelativePath != "/")) {
+                    // Master expects subdirectories to appear in file list
+                    String rootRelativeParentPath = GetRootRelativePathString(dir.getParent());
+                    var fi = new FileInfo(dir, attrs, rootRelativePath, rootRelativeParentPath);
+                    _files.add(fi);
+                }
 
                 return FileVisitResult.CONTINUE;
             }
