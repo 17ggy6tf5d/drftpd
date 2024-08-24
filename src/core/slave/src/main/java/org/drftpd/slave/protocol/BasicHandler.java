@@ -742,7 +742,7 @@ public class BasicHandler extends AbstractHandler {
             // Add parent first
             AddDir(dir.getParent(), null);
 
-            // keep newest modified time in case direcotry exists in multiple roots
+            // keep newest modified time in case directory exists in multiple roots
             var value = _directories.get(rootRelativePath);
             if (value != null) {
                 if (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0) {
@@ -811,8 +811,8 @@ public class BasicHandler extends AbstractHandler {
                     // we ignore all symlinks
                 }
                 else if (attrs.isRegularFile()) {
-                    AddDir(file.getPArent(), null);
-                    
+                    AddDir(file.getParent(), null);
+
                     var fi = new FileInfo(file, attrs, rootRelativePath, parentPath);
                     _files.add(fi);
                 }
