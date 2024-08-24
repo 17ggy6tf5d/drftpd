@@ -719,11 +719,39 @@ public class BasicHandler extends AbstractHandler {
         }
 
         public String GetRootRelativePathString(Path path) throws IllegalArgumentException {
-            String normalizedPath = path.normalize().toString();
-            if (!path.startsWith(rootPath)) {
+            Path normalizedPath = path.normalize();
+            if (!normalizedPath.startsWith(rootPath)) {
                 throw new IllegalArgumentException(String.format("Path {} is not part of rootPath {}", path, rootPath));
             }
-            return normalizedPath.substring(rootPathString.length() - File.separator.length());
+            return normalizedPath.toString().substring(rootPathString.length() - File.separator.length());
+        }
+
+        private void AddDir(Path dir, BasicFileAttributes attrs) {
+            String rootRelativePath = "";
+            try {
+                rootRelativePath = GetRootRelativePathString(dir);
+            }
+            catch (IllegalArgumentException e) {
+                return;
+            }
+
+            if (ignoreDirectory(rootRelativePath)) {
+                return;
+            }
+
+            // Add parent first
+            AddDir(dir.getParent(), null);
+
+            // keep newest modified time in case direcotry exists in multiple roots
+            var value = _directories.get(rootRelativePath);
+            if (value != null) {
+                if (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0) {
+                    _directories.put(rootRelativePath, attrs);
+                }
+            }
+            else {
+                _directories.put(rootRelativePath, attrs);
+            }
         }
 
         public class FileInfo {
@@ -753,16 +781,7 @@ public class BasicHandler extends AbstractHandler {
                     return FileVisitResult.SKIP_SUBTREE;
                 }
 
-                // keep newest modified time in case directory exists in multiple roots
-                var value = _directories.get(path);
-                if (value != null) {
-                    if (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0) {
-                        _directories.put(path, attrs);
-                    }
-                }
-                else {
-                    _directories.put(path, attrs);
-                }
+                AddDir(dir, attrs);
 
                 return FileVisitResult.CONTINUE;
             }
@@ -792,6 +811,8 @@ public class BasicHandler extends AbstractHandler {
                     // we ignore all symlinks
                 }
                 else if (attrs.isRegularFile()) {
+                    AddDir(file.getPArent(), null);
+                    
                     var fi = new FileInfo(file, attrs, rootRelativePath, parentPath);
                     _files.add(fi);
                 }
@@ -823,7 +844,7 @@ public class BasicHandler extends AbstractHandler {
                 }
                 return FileVisitResult.CONTINUE;
             }
-            catch (Exception e) {
+            catch (IllegalArgumentException e) {
                 logger.error("Error getting root relative path for {}", dir, e);
                 return FileVisitResult.TERMINATE;
             }
