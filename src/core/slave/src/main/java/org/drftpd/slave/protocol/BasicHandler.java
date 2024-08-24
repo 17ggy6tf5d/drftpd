@@ -662,6 +662,11 @@ public class BasicHandler extends AbstractHandler {
                     dirFiles = new LinkedList<LightRemoteInode>();
                     lastModified.put(fi.rootRelativeParentPath, (long)0);
                 }
+                dirFiles.sort(new Comparator<LightRemoteInod>() {
+                    public int compare(LightRemoteInode o1, LightRemoteInode o2) {
+                        return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
+                    }
+                });
 
                 var inode = new LightRemoteInode(
                     fi.path.getFileName().toString(),
@@ -685,13 +690,13 @@ public class BasicHandler extends AbstractHandler {
 
             // master expects results depth first
             result.sort(new Comparator<AsyncResponseRemerge>() {
-                public int compare(AsyncResponseRemerge s1, AsyncResponseRemerge s2) {
-                    if (s1.getPath().equals(s2.getPath()))
+                public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
+                    if (o1.getPath().equals(o2.getPath()))
                     {
                         return 0;
                     }
-                    long s1sepcount = s1.getPath().codePoints().filter(ch -> ch == '/').count();
-                    long s2sepcount = s2.getPath().codePoints().filter(ch -> ch == '/').count();
+                    long s1sepcount = o1.getPath().codePoints().filter(ch -> ch == '/').count();
+                    long s2sepcount = o2.getPath().codePoints().filter(ch -> ch == '/').count();
                     
                     if (s1sepcount < s2sepcount) {
                         return 1;
