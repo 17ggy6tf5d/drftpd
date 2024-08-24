@@ -642,8 +642,11 @@ public class BasicHandler extends AbstractHandler {
             return ignorePath(_filePathsToIgnore, path);
         }
 
-        private HashMap<Path, BasicFileAttributes> _directories = new HashMap<Path, BasicFileAttributes>();
+        private HashMap<String, BasicFileAttributes> _directories = new HashMap<String, BasicFileAttributes>();
         private LinkedList<WalkFileTree.FileInfo> _files = new LinkedList<WalkFileTree.FileInfo>();
+
+        private Path rootPath = null;
+        private String rootPathString = null;
 
         public List<AsyncResponseRemerge> getWalkResult() {
             var files = new HashMap<String, List<LightRemoteInode>>();
@@ -654,12 +657,12 @@ public class BasicHandler extends AbstractHandler {
                 lastModified.put(dir.toString(), attr.lastModifiedTime().toMillis());
             });
             for (var fi : _files) {
-                String parentPath = fi.path.getParent().toString();
-                var dirFiles = files.get(parentPath);
+                var dirFiles = files.get(fi.rootRelativeParentPath);
                 if (dirFiles == null) {
                     dirFiles = new LinkedList<LightRemoteInode>();
-                    lastModified.put(parentPath, (long)0);
+                    lastModified.put(fi.rootRelativeParentPath, (long)0);
                 }
+
                 var inode = new LightRemoteInode(
                     fi.path.getFileName().toString(),
                     "drftpd",
@@ -668,8 +671,9 @@ public class BasicHandler extends AbstractHandler {
                     fi.attr.lastModifiedTime().toMillis(),
                     fi.attr.size()
                 );
+
                 dirFiles.add(inode);
-                files.put(parentPath, dirFiles);
+                files.put(fi.rootRelativeParentPath, dirFiles);
             }
 
             var result = new LinkedList<AsyncResponseRemerge>();
@@ -703,19 +707,35 @@ public class BasicHandler extends AbstractHandler {
             return result;
         }
 
-        public void Walk(String path) throws IOException
-        {
-            Path _path = Paths.get(path);
+        public void Walk(String path) throws IOException {
+            rootPath = Paths.get(path).toRealPath();
+            rootPathString = rootPath.toString();
+            if (!rootPathString.endsWith(File.separator)) {
+                rootPathString = rootPathString + File.separator;
+            }
+
             Files.walkFileTree(_path, this);
+        }
+
+        public String GetRootRelativePathString(Path path) throws IllegalArgumentException {
+            String normalizedPath = path.normalise().toString();
+            if (!path.startsWith(rootPath)) {
+                throw new IllegalArgumentException(String.format("Path {} is not part of rootPath {}", path, rootPath));
+            }
+            return normalizedPath.substring(rootPathString.length() - File.separator.length());
         }
 
         public class FileInfo {
             public final Path path;
             public final BasicFileAttributes attr;
+            public final String rootRelativePath;
+            public final String rootRelativeParentPath;
 
-            public FileInfo(Path path, BasicFileAttributes attr) {
+            public FileInfo(Path path, BasicFileAttributes attr, String rootRelativePath, String rootRelativeParentPath) {
                 this.path = path;
                 this.attr = attr;
+                this.rootRelativePath = rootRelativePath;
+                this.rootRelativeParentPath = rootRelativeParentPath;
             }
         }
 
@@ -725,12 +745,30 @@ public class BasicHandler extends AbstractHandler {
             BasicFileAttributes attrs
         )
         {
-            if (ignoreDirectory(dir.toString())) {
-                return FileVisitResult.SKIP_SUBTREE;
-            }
+            try {
+                String path = GetRootRelativePathString(dir);
 
-            _directories.putIfAbsent(dir, attrs);
-            return FileVisitResult.CONTINUE;
+                if (ignoreDirectory(path)) {
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+
+                // keep newest modified time in case directory exists in multiple roots
+                var value = _directories.get(path);
+                if (value != null) {
+                    if (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0) {
+                        _directories.put(path, attrs);
+                    }
+                }
+                else {
+                    _directories.put(path, attrs);
+                }
+
+                return FileVisitResult.CONTINUE;
+            }
+            catch (IllegalArgumentException e) {
+                logger.error("Error getting root relative path for {}, dir, e);
+                return FileVisitResult.TERMINATE;
+            }
         }
 
         @Override
@@ -738,20 +776,31 @@ public class BasicHandler extends AbstractHandler {
             Path file,
             BasicFileAttributes attrs)
         {
-            if (ignoreFile(file.toString())) {
+            try {
+                String rootRelativePath = GetRootRelativePathString(file);
+                String parentPath = GetRootRelativePathString(file.getParent());
+
+                if (attrs.isRegularFile() && ignoreFile(rootRelativePath)) {
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+
+                if (attrs.isSymbolicLink()) {
+                    // we ignore all symlinks
+                }
+                else if (attrs.isRegularFile()) {
+                    var fi = new FileInfo(file, attrs, rootRelativePath, parentPath);
+                    _files.add(fi);
+                }
+                else if (attrs.isDirectory()) {
+                    // directory should have been added in preVisitDirectory
+                }
+
                 return FileVisitResult.CONTINUE;
             }
-
-
-            if (attrs.isSymbolicLink()) {
-                // we ignore all symlinks
+            catch (IllegalArgumentException e) {
+                logger.error("Error getting root relative path for {}, file, e);
+                return FileVisitResult.TERMINATE;
             }
-            else if (attrs.isRegularFile()) {
-                var fi = new FileInfo(file, attrs);
-                _files.add(fi);
-            }
-
-            return FileVisitResult.CONTINUE;
         }
 
         @Override
@@ -760,10 +809,20 @@ public class BasicHandler extends AbstractHandler {
             IOException exc
         )
         {
-            if (exc != null) {
-                logger.error("Failed to visit directory: " + dir.toString(), exc);
+            try {
+                String path = GetRootRelativePathString(dir);
+                
+                if (exc != null) {
+                    if (!ignoreDirectory(path)) {
+                        logger.error("Failed to visit directory: " + dir.toString(), exc);
+                    }
+                }
+                return FileVisitResult.CONTINUE;
             }
-            return FileVisitResult.CONTINUE;
+            catch (Exception e) {
+                logger.error("Error getting root relative path for {}, file, e);
+                return FileVisitResult.TERMINATE;
+            }
         }
 
         @Override
