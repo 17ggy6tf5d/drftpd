@@ -693,7 +693,7 @@ public class BasicHandler extends AbstractHandler {
                     long s1sepcount = s1.getPath().codePoints().filter(ch -> ch == '/').count();
                     long s2sepcount = s2.getPath().codePoints().filter(ch -> ch == '/').count();
                     
-                    if (s1sepcount > s2sepcount) {
+                    if (s1sepcount < s2sepcount) {
                         return 1;
                     }
                     else if (s1sepcount > s2sepcount) {
