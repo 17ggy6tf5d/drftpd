@@ -662,7 +662,7 @@ public class BasicHandler extends AbstractHandler {
                     dirFiles = new LinkedList<LightRemoteInode>();
                     lastModified.put(fi.rootRelativeParentPath, (long)0);
                 }
-                dirFiles.sort(new Comparator<LightRemoteInod>() {
+                dirFiles.sort(new Comparator<LightRemoteInode>() {
                     public int compare(LightRemoteInode o1, LightRemoteInode o2) {
                         return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
                     }
