@@ -714,11 +714,11 @@ public class BasicHandler extends AbstractHandler {
                 rootPathString = rootPathString + File.separator;
             }
 
-            Files.walkFileTree(_path, this);
+            Files.walkFileTree(rootPath, this);
         }
 
         public String GetRootRelativePathString(Path path) throws IllegalArgumentException {
-            String normalizedPath = path.normalise().toString();
+            String normalizedPath = path.normalize().toString();
             if (!path.startsWith(rootPath)) {
                 throw new IllegalArgumentException(String.format("Path {} is not part of rootPath {}", path, rootPath));
             }
@@ -766,7 +766,7 @@ public class BasicHandler extends AbstractHandler {
                 return FileVisitResult.CONTINUE;
             }
             catch (IllegalArgumentException e) {
-                logger.error("Error getting root relative path for {}, dir, e);
+                logger.error("Error getting root relative path for {}", dir, e);
                 return FileVisitResult.TERMINATE;
             }
         }
@@ -781,6 +781,9 @@ public class BasicHandler extends AbstractHandler {
                 String parentPath = GetRootRelativePathString(file.getParent());
 
                 if (attrs.isRegularFile() && ignoreFile(rootRelativePath)) {
+                    return FileVisitResult.CONTINUE;
+                }
+                else if (attrs.isDirectory() && ignoreDirectory(rootRelativePath)) {
                     return FileVisitResult.SKIP_SUBTREE;
                 }
 
@@ -811,7 +814,7 @@ public class BasicHandler extends AbstractHandler {
         {
             try {
                 String path = GetRootRelativePathString(dir);
-                
+
                 if (exc != null) {
                     if (!ignoreDirectory(path)) {
                         logger.error("Failed to visit directory: " + dir.toString(), exc);
@@ -820,7 +823,7 @@ public class BasicHandler extends AbstractHandler {
                 return FileVisitResult.CONTINUE;
             }
             catch (Exception e) {
-                logger.error("Error getting root relative path for {}, file, e);
+                logger.error("Error getting root relative path for {}", file, e);
                 return FileVisitResult.TERMINATE;
             }
         }
