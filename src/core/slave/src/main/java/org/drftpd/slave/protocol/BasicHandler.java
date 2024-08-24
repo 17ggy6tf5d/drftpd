@@ -683,6 +683,7 @@ public class BasicHandler extends AbstractHandler {
                 result.add(arr);
             });
 
+            // master expects results depth first
             result.sort(new Comparator<AsyncResponseRemerge>() {
                 public int compare(AsyncResponseRemerge s1, AsyncResponseRemerge s2) {
                     if (s1.getPath().equals(s2.getPath()))
@@ -693,10 +694,10 @@ public class BasicHandler extends AbstractHandler {
                     long s2sepcount = s2.getPath().codePoints().filter(ch -> ch == '/').count();
                     
                     if (s1sepcount > s2sepcount) {
-                        return -1;
+                        return 1;
                     }
                     else if (s1sepcount > s2sepcount) {
-                        return 1;
+                        return -1;
                     }
                     else {
                         return 0;
