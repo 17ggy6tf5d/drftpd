@@ -745,7 +745,7 @@ public class BasicHandler extends AbstractHandler {
             // keep newest modified time in case directory exists in multiple roots
             var value = _directories.get(rootRelativePath);
             if (value != null) {
-                if (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0) {
+                if ((attrs != null) && (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0)) {
                     _directories.put(rootRelativePath, attrs);
                 }
             }
