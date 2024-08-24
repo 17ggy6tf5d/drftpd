@@ -801,7 +801,7 @@ public class BasicHandler extends AbstractHandler {
                 return FileVisitResult.CONTINUE;
             }
             catch (IllegalArgumentException e) {
-                logger.error("Error getting root relative path for {}, file, e);
+                logger.error("Error getting root relative path for {}", file, e);
                 return FileVisitResult.TERMINATE;
             }
         }
@@ -823,7 +823,7 @@ public class BasicHandler extends AbstractHandler {
                 return FileVisitResult.CONTINUE;
             }
             catch (Exception e) {
-                logger.error("Error getting root relative path for {}", file, e);
+                logger.error("Error getting root relative path for {}", dir, e);
                 return FileVisitResult.TERMINATE;
             }
         }
