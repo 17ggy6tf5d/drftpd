@@ -662,8 +662,28 @@ public class BasicHandler extends AbstractHandler {
             return ignorePath(_directoryPathsToIgnore, path);
         }
 
+        private boolean ignoreDirectory(Path path) {
+            try {
+                String rootRelativePath = GetRootRelativePathString(path);
+                return ignoreDirectory(rootRelativePath);
+            }
+            catch (IllegalArgumentException e) {
+                return false;
+            }
+        }
+
         private boolean ignoreFile(String path) {
             return ignorePath(_filePathsToIgnore, path);
+        }
+
+        private boolean ignoreDirectory(Path path) {
+            try {
+                String rootRelativePath = GetRootRelativePathString(path);
+                return ignoreFile(rootRelativePath);
+            }
+            catch (IllegalArgumentException e) {
+                return false;
+            }
         }
 
         private HashMap<String, BasicFileAttributes> _directories = new HashMap<String, BasicFileAttributes>();
@@ -890,11 +910,13 @@ public class BasicHandler extends AbstractHandler {
 
         @Override
         public FileVisitResult visitFileFailed(
-            Path file,
+            Path path,
             IOException exc
         )
         {
-            logger.error("Failed to visit file: " + file.toString(), exc);
+            if (!ignoreDirectory(path) && !ignoreFile(path)) {
+                  logger.error("Failed to visit path: " + path.toString(), exc);
+            }
             return FileVisitResult.CONTINUE;
         }
     }
