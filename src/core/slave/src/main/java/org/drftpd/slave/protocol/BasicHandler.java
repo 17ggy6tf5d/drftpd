@@ -259,6 +259,7 @@ public class BasicHandler extends AbstractHandler {
                     return null;
                 }
                 sendResponse(rr);
+                Thread.sleep(200);
             }
 
             logger.debug("Remerging done");
