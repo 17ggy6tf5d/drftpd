@@ -789,7 +789,7 @@ public class BasicHandler extends AbstractHandler {
         )
         {
             try {
-                if (_slave.isOnline()) {
+                if (!_slave.isOnline()) {
                     return FileVisitResult.TERMINATE;
                 }
 
