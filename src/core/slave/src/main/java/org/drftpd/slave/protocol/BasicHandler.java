@@ -892,7 +892,7 @@ public class BasicHandler extends AbstractHandler {
                     _files.add(fi);
                 }
                 else if (attrs.isDirectory()) {
-                    // directory should have been added in preVisitDirectory, addingin case preVisitDirectory missed attributes
+                    // directory should have been added in preVisitDirectory, adding in case preVisitDirectory missed attributes
                     AddDir(file, attrs);
                 }
 
