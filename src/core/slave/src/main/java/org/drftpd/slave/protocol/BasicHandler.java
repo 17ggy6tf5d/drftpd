@@ -302,7 +302,7 @@ public class BasicHandler extends AbstractHandler {
                 }
 
                 if (partialRemerge && rr.getLastModified() <= skipAgeCutoff) {
-                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", rr.GetPath(), rr.getLastModified, skipAgeCutoff);
+                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", rr.getPath(), rr.getLastModified(), skipAgeCutoff);
                     continue;
                 }
 
