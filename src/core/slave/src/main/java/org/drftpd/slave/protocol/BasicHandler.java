@@ -261,6 +261,19 @@ public class BasicHandler extends AbstractHandler {
                     // Slave has shut down, no need to continue with remerge
                     return null;
                 }
+
+                while (remergePaused.get() && slave.isOnline()) {
+                    logger.debug("Remerging paused, sleeping");
+                    synchronized (remergeWaitObj) {
+                        try {
+                            remergeWaitObj.wait(1000);
+                        } catch (InterruptedException e) {
+                            // Either we have been woken properly in which case we will exit the
+                            // loop or we have not in which case we will wait again.
+                        }
+                    }
+                }
+
                 logger.debug("Sending {} to the master", rr.getPath());
                 sendResponse(rr);
             }
