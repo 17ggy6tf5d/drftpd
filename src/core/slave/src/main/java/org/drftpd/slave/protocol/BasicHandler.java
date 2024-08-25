@@ -273,7 +273,7 @@ public class BasicHandler extends AbstractHandler {
             }
             logger.info(remergeDecision);
             sendResponse(new AsyncResponseSiteBotMessage(remergeDecision));
-            
+
             logger.debug("Remerging start");
 
             WalkFileTree wft = new WalkFileTree(getSlaveObject());
