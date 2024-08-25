@@ -722,6 +722,10 @@ public class BasicHandler extends AbstractHandler {
 
             var result = new LinkedList<AsyncResponseRemerge>();
             files.forEach((dir, inodes) -> {
+                if (dir == "" || dir == "/") {
+                    return;
+                }
+
                 var lm = lastModified.getOrDefault(dir, (long)0);
 
                 inodes.sort(new Comparator<LightRemoteInode>() {
