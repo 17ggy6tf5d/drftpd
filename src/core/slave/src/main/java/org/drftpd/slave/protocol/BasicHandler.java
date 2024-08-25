@@ -245,8 +245,8 @@ public class BasicHandler extends AbstractHandler {
         }
         try {
             logger.debug("Remerging start");
-           
-            WalkFileTree wft = new WalkFileTree(getSlaveObject().getConfig());
+
+            WalkFileTree wft = new WalkFileTree(getSlaveObject());
             var roots = getSlaveObject().getRoots().getRootList();
             for (Root root : roots) {
                 wft.Walk(root.getPath());
@@ -254,10 +254,11 @@ public class BasicHandler extends AbstractHandler {
             List<AsyncResponseRemerge> rrs = wft.getWalkResult();
             Slave slave = getSlaveObject();
             for (var rr : rrs) {
-                if (slave.isOnline()) {
+                if (!slave.isOnline()) {
                     // Slave has shut down, no need to continue with remerge
-                    sendResponse(rr);
+                    return null;
                 }
+                sendResponse(rr);
             }
 
             logger.debug("Remerging done");
@@ -611,8 +612,8 @@ public class BasicHandler extends AbstractHandler {
         public WalkFileTree(Slave slave)
         {
             _slave = slave;
-            var properties = slave.getConfig();
-            
+            Properties properties = slave.getConfig();
+
             List<String> directoryPathsToIgnore = new ArrayList<String>();
             List<String> filePathsToIgnore = new ArrayList<String>();
 
