@@ -245,18 +245,22 @@ public class BasicHandler extends AbstractHandler {
         }
         try {
             logger.debug("Remerging start");
+           
             WalkFileTree wft = new WalkFileTree(getSlaveObject().getConfig());
             var roots = getSlaveObject().getRoots().getRootList();
             for (Root root : roots) {
                 wft.Walk(root.getPath());
             }
             List<AsyncResponseRemerge> rrs = wft.getWalkResult();
+            Slave slave = getSlaveObject();
             for (var rr : rrs) {
-                sendResponse(rr);
+                if (slave.isOnline()) {
+                    // Slave has shut down, no need to continue with remerge
+                    sendResponse(rr);
+                }
             }
 
             logger.debug("Remerging done");
-            _remerging.set(false);
             return new AsyncResponse(ac.getIndex());
 /*            
             // Slave Protocol central calls this with a dedicated thread which we give the lowest possible priority
@@ -366,8 +370,9 @@ public class BasicHandler extends AbstractHandler {
             logger.error("Exception during merging", e);
             sendResponse(new AsyncResponseSiteBotMessage("Exception during merging"));
 
-            _remerging.set(false);
             return new AsyncResponseException(ac.getIndex(), e);
+        } finally {
+            _remerging.set(false);
         }
     }
 
@@ -580,6 +585,7 @@ public class BasicHandler extends AbstractHandler {
 
     public class WalkFileTree extends SimpleFileVisitor<Path>
     {
+        private final Slave _slave;
         private List<Pattern> _directoryPathsToIgnore;
         private List<Pattern> _filePathsToIgnore;
 
@@ -602,8 +608,11 @@ public class BasicHandler extends AbstractHandler {
             return result;
         }
 
-        public WalkFileTree(Properties properties)
+        public WalkFileTree(Slave slave)
         {
+            _slave = slave;
+            var properties = slave.getConfig();
+            
             List<String> directoryPathsToIgnore = new ArrayList<String>();
             List<String> filePathsToIgnore = new ArrayList<String>();
 
@@ -779,6 +788,10 @@ public class BasicHandler extends AbstractHandler {
         )
         {
             try {
+                if (_slave.isOnline()) {
+                    return FileVisitResult.TERMINATE;
+                }
+
                 String rootRelativePath = GetRootRelativePathString(dir);
                 if (ignoreDirectory(rootRelativePath)) {
                     return FileVisitResult.SKIP_SUBTREE;
