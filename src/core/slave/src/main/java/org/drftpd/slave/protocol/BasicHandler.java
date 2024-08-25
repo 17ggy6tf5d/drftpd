@@ -933,7 +933,7 @@ public class BasicHandler extends AbstractHandler {
         )
         {
             if (!ignoreDirectory(path) && !ignoreFile(path)) {
-                  logger.error("Failed to visit path: " + path.toString(), exc);
+                logger.error("Failed to visit path: " + path.toString(), exc);
             }
             return FileVisitResult.CONTINUE;
         }
