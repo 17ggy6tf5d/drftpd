@@ -712,7 +712,7 @@ public class BasicHandler extends AbstractHandler {
                     fi.path.getFileName().toString(),
                     "drftpd",
                     "drftpd",
-                    false,
+                    fi.attr.isDirectory(),
                     fi.attr.lastModifiedTime().toMillis(),
                     fi.attr.size()
                 );
