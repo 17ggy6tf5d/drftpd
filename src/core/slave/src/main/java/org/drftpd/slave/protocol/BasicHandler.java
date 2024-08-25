@@ -238,6 +238,9 @@ public class BasicHandler extends AbstractHandler {
      * 4: instantOnline (boolean)
      */
     public AsyncResponse handleRemerge(AsyncCommandArgument ac) {
+        // Slave Protocol central calls this with a dedicated thread which we give the lowest possible priority
+        Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
+
         if (!_remerging.compareAndSet(false, true))
         {
             logger.warn("Received remerge request while we are remerging");
@@ -258,16 +261,13 @@ public class BasicHandler extends AbstractHandler {
                     // Slave has shut down, no need to continue with remerge
                     return null;
                 }
+                logger.debug("Sending {} to the master", rr.getPath());
                 sendResponse(rr);
-                Thread.sleep(200);
             }
 
             logger.debug("Remerging done");
             return new AsyncResponse(ac.getIndex());
 /*            
-            // Slave Protocol central calls this with a dedicated thread which we give the lowest possible priority
-            Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
-
             // Get the arguments for this command
             String[] argsArray = ac.getArgsArray();
             String basePath = argsArray[0];
