@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
@@ -722,10 +723,6 @@ public class BasicHandler extends AbstractHandler {
 
             var result = new LinkedList<AsyncResponseRemerge>();
             files.forEach((dir, inodes) -> {
-                if (dir == "" || dir == "/") {
-                    return;
-                }
-
                 var lm = lastModified.getOrDefault(dir, (long)0);
 
                 inodes.sort(new Comparator<LightRemoteInode>() {
@@ -795,6 +792,16 @@ public class BasicHandler extends AbstractHandler {
 
             // Add parent first
             AddDir(dir.getParent(), null);
+
+            if (attrs == null) {
+                try {
+                    attrs = Files.readAttributes(dir, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                }
+                catch (IOException e) {
+                    logger.error("Could not read attributes for directory {}", dir, e);
+                    return;
+                }
+            }
 
             // keep newest modified time in case directory exists in multiple roots
             var value = _directories.get(rootRelativePath);
