@@ -738,9 +738,10 @@ public class BasicHandler extends AbstractHandler {
             // master expects results depth first
             result.sort(new Comparator<AsyncResponseRemerge>() {
                 public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
-                    if (o1.getPath().equals(o2.getPath())) {
+                    if (o1.getPath().equalsIgnoreCase(o2.getPath())) {
                         return 0;
                     }
+
                     long s1sepcount = o1.getPath().codePoints().filter(ch -> ch == '/').count();
                     long s2sepcount = o2.getPath().codePoints().filter(ch -> ch == '/').count();
                     
@@ -751,7 +752,7 @@ public class BasicHandler extends AbstractHandler {
                         return -1;
                     }
                     else {
-                        return 0;
+                        return o2.getPath().compareToIgnoreCase(o1.getPath());
                     }
                 }
             });
