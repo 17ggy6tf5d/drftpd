@@ -803,6 +803,10 @@ public class BasicHandler extends AbstractHandler {
                 }
             }
 
+            if (attrs == null) {
+                logger.error("Attributes for directory {} are missing", dir);
+            }
+
             // keep newest modified time in case directory exists in multiple roots
             var value = _directories.get(rootRelativePath);
             if (value != null) {
@@ -888,7 +892,8 @@ public class BasicHandler extends AbstractHandler {
                     _files.add(fi);
                 }
                 else if (attrs.isDirectory()) {
-                    // directory should have been added in preVisitDirectory
+                    // directory should have been added in preVisitDirectory, addingin case preVisitDirectory missed attributes
+                    AddDir(file, attrs);
                 }
 
                 return FileVisitResult.CONTINUE;
