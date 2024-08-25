@@ -248,6 +248,32 @@ public class BasicHandler extends AbstractHandler {
             return new AsyncResponseException(ac.getIndex(), new Exception("Already remerging"));
         }
         try {
+            // Get the arguments for this command
+            String[] argsArray = ac.getArgsArray();
+            String basePath = argsArray[0];
+            boolean instantOnline = Boolean.parseBoolean(argsArray[4]);
+            boolean partialRemerge = Boolean.parseBoolean(argsArray[1]) && !getSlaveObject().ignorePartialRemerge() && !instantOnline;
+            long skipAgeCutoff = 0L; // We only care for the value the master gave us if we are partial remerging (see below)
+            long masterTime = Long.parseLong(argsArray[3]);
+
+            // Based on the input decide the remerge situation on our end and report back
+            String remergeDecision = "Unexpected situation encountered in handleRemerge, please report";
+            if (partialRemerge) {
+                skipAgeCutoff = Long.parseLong(argsArray[2]);
+
+                if (skipAgeCutoff != Long.MIN_VALUE) {
+                    skipAgeCutoff += System.currentTimeMillis() - masterTime;
+                }
+                Date cutoffDate = new Date(skipAgeCutoff);
+                remergeDecision = "Instant online: disabled, Partial remerge: enabled. skipping all files last modified before " + cutoffDate.toString() + ".";
+            } else if (instantOnline) {
+                remergeDecision = "Instant online: enabled, Partial remerge: disabled. Remerging in background.";
+            } else {
+                remergeDecision = "Instant online: disabled, Partial remerge: disabled. Remerging in foreground.";
+            }
+            logger.info(remergeDecision);
+            sendResponse(new AsyncResponseSiteBotMessage(remergeDecision));
+            
             logger.debug("Remerging start");
 
             WalkFileTree wft = new WalkFileTree(getSlaveObject());
@@ -275,6 +301,11 @@ public class BasicHandler extends AbstractHandler {
                     }
                 }
 
+                if (partialRemerge && rr.getLastModified() <= skipAgeCutoff) {
+                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", rr.GetPath(), rr.getLastModified, skipAgeCutoff);
+                    continue;
+                }
+
                 logger.debug("Sending {} to the master", rr.getPath());
                 sendResponse(rr);
             }
@@ -282,32 +313,6 @@ public class BasicHandler extends AbstractHandler {
             logger.debug("Remerging done");
             return new AsyncResponse(ac.getIndex());
 /*            
-            // Get the arguments for this command
-            String[] argsArray = ac.getArgsArray();
-            String basePath = argsArray[0];
-            boolean instantOnline = Boolean.parseBoolean(argsArray[4]);
-            boolean partialRemerge = Boolean.parseBoolean(argsArray[1]) && !getSlaveObject().ignorePartialRemerge() && !instantOnline;
-            long skipAgeCutoff = 0L; // We only care for the value the master gave us if we are partial remerging (see below)
-            long masterTime = Long.parseLong(argsArray[3]);
-
-            // Based on the input decide the remerge situation on our end and report back
-            String remergeDecision = "Unexpected situation encountered in handleRemerge, please report";
-            if (partialRemerge) {
-                skipAgeCutoff = Long.parseLong(argsArray[2]);
-
-                if (skipAgeCutoff != Long.MIN_VALUE) {
-                    skipAgeCutoff += System.currentTimeMillis() - masterTime;
-                }
-                Date cutoffDate = new Date(skipAgeCutoff);
-                remergeDecision = "Instant online: disabled, Partial remerge: enabled. skipping all files last modified before " + cutoffDate.toString() + ".  Remerging with " + _pool.getMaximumPoolSize() + " threads";
-            } else if (instantOnline) {
-                remergeDecision = "Instant online: enabled, Partial remerge: disabled. Remerging in background with " + _pool.getMaximumPoolSize() + " threads";
-            } else {
-                remergeDecision = "Instant online: disabled, Partial remerge: disabled. Remerging in foreground with " + _pool.getMaximumPoolSize() + " threads";
-            }
-            logger.info(remergeDecision);
-            sendResponse(new AsyncResponseSiteBotMessage(remergeDecision));
-
             _remerging.set(true);
             // Start with a empty list!
             mergeDepth.clear();
