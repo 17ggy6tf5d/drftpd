@@ -676,7 +676,7 @@ public class BasicHandler extends AbstractHandler {
             return ignorePath(_filePathsToIgnore, path);
         }
 
-        private boolean ignoreDirectory(Path path) {
+        private boolean ignoreFile(Path path) {
             try {
                 String rootRelativePath = GetRootRelativePathString(path);
                 return ignoreFile(rootRelativePath);
