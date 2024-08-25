@@ -723,7 +723,6 @@ public class BasicHandler extends AbstractHandler {
             var result = new LinkedList<AsyncResponseRemerge>();
             files.forEach((dir, inodes) -> {
                 var lm = lastModified.getOrDefault(dir, (long)0);
-                var arr = new AsyncResponseRemerge(dir, inodes, lm);
 
                 inodes.sort(new Comparator<LightRemoteInode>() {
                     public int compare(LightRemoteInode o1, LightRemoteInode o2) {
@@ -731,6 +730,7 @@ public class BasicHandler extends AbstractHandler {
                     }
                 });
 
+                var arr = new AsyncResponseRemerge(dir, inodes, lm);
                 result.add(arr);
             });
 
