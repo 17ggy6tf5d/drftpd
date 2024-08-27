@@ -607,89 +607,10 @@ public class BasicHandler extends AbstractHandler {
     public class WalkFileTree extends SimpleFileVisitor<Path>
     {
         private final Slave _slave;
-        private List<Pattern> _directoryPathsToIgnore;
-        private List<Pattern> _filePathsToIgnore;
-
-        private List<Pattern> CompileRegExPatterns(List<String> patterns) {
-            var result = new ArrayList<Pattern>();
-
-            for (String pattern : patterns)
-            {
-                if (pattern == null)
-                    continue;
-
-                try {
-                    result.add(Pattern.compile(pattern));
-                }
-                catch (PatternSyntaxException e) {
-                    logger.error("Error compiling regex pattern: " + pattern, e);
-                }
-            }
-
-            return result;
-        }
 
         public WalkFileTree(Slave slave)
         {
             _slave = slave;
-            Properties properties = slave.getConfig();
-
-            List<String> directoryPathsToIgnore = new ArrayList<String>();
-            List<String> filePathsToIgnore = new ArrayList<String>();
-
-            for (int i = 1; ; i++) {
-                String pattern = properties.getProperty("slave.pathstoignore." + i);
-                String type = properties.getProperty("slave.pathstoignore." + i + ".type");
-                if (pattern == null)
-                    break;
-    
-                if ("directory".equalsIgnoreCase(type)) {
-                    directoryPathsToIgnore.add(pattern);
-                }
-                else if ("file".equalsIgnoreCase(type)) {
-                    filePathsToIgnore.add(pattern);
-                }
-            }
-
-            _directoryPathsToIgnore = CompileRegExPatterns(directoryPathsToIgnore);
-            _filePathsToIgnore = CompileRegExPatterns(filePathsToIgnore);
-        }
-
-        private boolean ignorePath(List<Pattern> patterns, String path) {
-            for (Pattern pattern : patterns) {
-                if (pattern.matcher(path).matches()) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private boolean ignoreDirectory(String path) {
-            return ignorePath(_directoryPathsToIgnore, path);
-        }
-
-        private boolean ignoreDirectory(Path path) {
-            try {
-                String rootRelativePath = GetRootRelativePathString(path);
-                return ignoreDirectory(rootRelativePath);
-            }
-            catch (IllegalArgumentException e) {
-                return false;
-            }
-        }
-
-        private boolean ignoreFile(String path) {
-            return ignorePath(_filePathsToIgnore, path);
-        }
-
-        private boolean ignoreFile(Path path) {
-            try {
-                String rootRelativePath = GetRootRelativePathString(path);
-                return ignoreFile(rootRelativePath);
-            }
-            catch (IllegalArgumentException e) {
-                return false;
-            }
         }
 
         private HashMap<String, BasicFileAttributes> _directories = new HashMap<String, BasicFileAttributes>();
@@ -792,10 +713,6 @@ public class BasicHandler extends AbstractHandler {
                 return;
             }
 
-            if (ignoreDirectory(rootRelativePath)) {
-                return;
-            }
-
             // Add parent first
             AddDir(dir.getParent(), null);
 
@@ -809,23 +726,22 @@ public class BasicHandler extends AbstractHandler {
                 }
             }
 
-            if (attrs == null) {
-                logger.error("Attributes for directory {} are missing", dir);
-            }
-
             // keep newest modified time in case directory exists in multiple roots
             var value = _directories.get(rootRelativePath);
-            if (value != null) {
-                if ((attrs != null) && (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0)) {
-                    _directories.put(rootRelativePath, attrs);
-                }
+            if ((value == null) && (attrs == null)) {
+                logger.error("Attributes for directory {} are missing", dir);
+                return;
+            }
+
+            if ( (value == null) || ((attrs != null) && (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0)) ) {
+                _directories.put(rootRelativePath, attrs);
             }
             else {
                 _directories.put(rootRelativePath, attrs);
             }
         }
 
-        public class FileInfo {
+        private class FileInfo {
             public final Path path;
             public final BasicFileAttributes attr;
             public final String rootRelativePath;
@@ -851,9 +767,6 @@ public class BasicHandler extends AbstractHandler {
                 }
 
                 String rootRelativePath = GetRootRelativePathString(dir);
-                if (ignoreDirectory(rootRelativePath)) {
-                    return FileVisitResult.SKIP_SUBTREE;
-                }
 
                 AddDir(dir, attrs);
 
@@ -881,15 +794,8 @@ public class BasicHandler extends AbstractHandler {
                 String rootRelativePath = GetRootRelativePathString(file);
                 String rootRelativeParentPath = GetRootRelativePathString(file.getParent());
 
-                if (attrs.isRegularFile() && ignoreFile(rootRelativePath)) {
-                    return FileVisitResult.CONTINUE;
-                }
-                else if (attrs.isDirectory() && ignoreDirectory(rootRelativePath)) {
-                    return FileVisitResult.SKIP_SUBTREE;
-                }
-
                 if (attrs.isSymbolicLink()) {
-                    // we ignore all symlinks
+                    logger.warn("You have a symbolic link {} -- these are ignored by drftpd", file);
                 }
                 else if (attrs.isRegularFile()) {
                     AddDir(file.getParent(), null);
@@ -916,20 +822,8 @@ public class BasicHandler extends AbstractHandler {
             IOException exc
         )
         {
-            try {
-                String path = GetRootRelativePathString(dir);
-
-                if (exc != null) {
-                    if (!ignoreDirectory(path)) {
-                        logger.error("Failed to visit directory: " + dir.toString(), exc);
-                    }
-                }
-                return FileVisitResult.CONTINUE;
-            }
-            catch (IllegalArgumentException e) {
-                logger.error("Error getting root relative path for {}", dir, e);
-                return FileVisitResult.TERMINATE;
-            }
+            logger.error("Failed to visit directory: " + dir.toString(), exc);
+            return FileVisitResult.CONTINUE;
         }
 
         @Override
@@ -938,9 +832,7 @@ public class BasicHandler extends AbstractHandler {
             IOException exc
         )
         {
-            if (!ignoreDirectory(path) && !ignoreFile(path)) {
-                logger.error("Failed to visit path: " + path.toString(), exc);
-            }
+            logger.error("Failed to visit path: " + path.toString(), exc);
             return FileVisitResult.CONTINUE;
         }
     }
