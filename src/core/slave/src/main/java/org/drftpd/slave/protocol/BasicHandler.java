@@ -736,9 +736,6 @@ public class BasicHandler extends AbstractHandler {
             if ( (value == null) || ((attrs != null) && (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0)) ) {
                 _directories.put(rootRelativePath, attrs);
             }
-            else {
-                _directories.put(rootRelativePath, attrs);
-            }
         }
 
         private class FileInfo {
