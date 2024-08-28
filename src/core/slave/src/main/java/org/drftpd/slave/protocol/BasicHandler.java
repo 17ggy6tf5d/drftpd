@@ -30,32 +30,29 @@ import org.drftpd.common.slave.ConnectInfo;
 import org.drftpd.common.slave.LightRemoteInode;
 import org.drftpd.common.slave.TransferIndex;
 import org.drftpd.common.slave.TransferStatus;
-import org.drftpd.slave.Slave;
 import org.drftpd.slave.network.*;
 import org.drftpd.slave.vfs.RootCollection;
 import org.drftpd.slave.vfs.Root;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.FileVisitResult;
-import java.nio.file.attribute.BasicFileAttributes;
-
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * Basic operations handling.
@@ -280,10 +277,10 @@ public class BasicHandler extends AbstractHandler {
             HashMap<String, List<LightRemoteInode>> inodeTree = new HashMap<>();
             HashMap<String, Long> lastModified = new HashMap<>();
             for (Root root : roots) {
-                root.getAllInodes(inodeTree, lastModifed, () -> !getSlaveObject().isOnline());
+                root.getAllInodes(inodeTree, lastModified, () -> !getSlaveObject().isOnline());
             }
 
-            var remergeItemst = new LinkedList<AsyncResponseRemerge>();
+            var remergeItems = new LinkedList<AsyncResponseRemerge>();
             inodeTree.forEach((dir, inodes) -> {
                 var lm = lastModified.getOrDefault(dir, (long)0);
 
@@ -294,11 +291,11 @@ public class BasicHandler extends AbstractHandler {
                 });
 
                 var arr = new AsyncResponseRemerge(dir, inodes, lm);
-                result.add(arr);
+                remergeItems.add(arr);
             });
 
             // master expects results depth first
-            result.sort(new Comparator<AsyncResponseRemerge>() {
+            remergeItems.sort(new Comparator<AsyncResponseRemerge>() {
                 public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
                     if (o1.getPath().equalsIgnoreCase(o2.getPath())) {
                         return 0;
@@ -320,7 +317,7 @@ public class BasicHandler extends AbstractHandler {
             });
 
             for (var remergeItem : remergeItems) {
-                while (remergePaused.get() && slave.isOnline()) {
+                while (remergePaused.get() && getSlaveObject().isOnline()) {
                     logger.debug("Remerging paused, sleeping");
                     synchronized (remergeWaitObj) {
                         try {
@@ -333,7 +330,7 @@ public class BasicHandler extends AbstractHandler {
                 }
 
                 if (partialRemerge && remergeItem.getLastModified() <= skipAgeCutoff) {
-                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", remergeItem.getPath(), remergeItemr.getLastModified(), skipAgeCutoff);
+                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", remergeItem.getPath(), remergeItem.getLastModified(), skipAgeCutoff);
                     continue;
                 }
 
@@ -342,7 +339,7 @@ public class BasicHandler extends AbstractHandler {
                     return null;
                 }
 
-                logger.debug("Sending {} to the master", rr.getPath());
+                logger.debug("Sending {} to the master", remergeItem.getPath());
                 sendResponse(remergeItem);
             }
 
