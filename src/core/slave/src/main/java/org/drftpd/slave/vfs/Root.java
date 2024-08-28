@@ -141,7 +141,7 @@ public class Root {
         private Path rootPath = null;
         private String rootPathString = null;
 
-        public HashMap<String, List<LightRemoteInode>> Walk(String path) throws IOException {
+        public Walk(String path) throws IOException {
             rootPath = Paths.get(path).toRealPath();
             rootPathString = rootPath.toString();
             if (!rootPathString.endsWith(File.separator)) {
@@ -150,14 +150,12 @@ public class Root {
 
             Files.walkFileTree(rootPath, this);
 
-            var files = new HashMap<String, List<LightRemoteInode>>();
-
             _directories.forEach((dir, attr) -> {
-                files.put(dir.toString(), new LinkedList<LightRemoteInode>());
+                _inodes.put(dir.toString(), new LinkedList<LightRemoteInode>());
                 _lastModified.put(dir.toString(), attr.lastModifiedTime().toMillis());
             });
             for (var fi : _files) {
-                var dirFiles = files.get(fi.rootRelativeParentPath);
+                var dirFiles = _inodes.get(fi.rootRelativeParentPath);
                 if (dirFiles == null) {
                     dirFiles = new LinkedList<LightRemoteInode>();
                     _lastModified.put(fi.rootRelativeParentPath, (long)0);
@@ -173,10 +171,8 @@ public class Root {
                 );
 
                 dirFiles.add(inode);
-                files.put(fi.rootRelativeParentPath, dirFiles);
+                _inodes.put(fi.rootRelativeParentPath, dirFiles);
             }
-
-            return files;
         }
 
         public String GetRootRelativePathString(Path path) throws IllegalArgumentException {
