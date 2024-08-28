@@ -288,7 +288,9 @@ public class Root {
             IOException exc
         )
         {
-            logger.error("Failed to visit directory: {}", path, exc);
+            if (exc != null) {
+                logger.error("Failed to visit directory: {}", path, exc);
+            }
             return FileVisitResult.CONTINUE;
         }
 
