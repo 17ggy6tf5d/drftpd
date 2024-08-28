@@ -141,7 +141,7 @@ public class Root {
         private Path rootPath = null;
         private String rootPathString = null;
 
-        public Walk(String path) throws IOException {
+        public void Walk(String path) throws IOException {
             rootPath = Paths.get(path).toRealPath();
             rootPathString = rootPath.toString();
             if (!rootPathString.endsWith(File.separator)) {
