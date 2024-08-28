@@ -277,6 +277,7 @@ public class BasicHandler extends AbstractHandler {
             HashMap<String, List<LightRemoteInode>> inodeTree = new HashMap<>();
             HashMap<String, Long> lastModified = new HashMap<>();
             for (Root root : roots) {
+                logger.debug("Getting file list for root {}", root);
                 root.getAllInodes(inodeTree, lastModified, () -> !getSlaveObject().isOnline());
             }
 
