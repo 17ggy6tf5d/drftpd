@@ -288,7 +288,7 @@ public class Root {
             IOException exc
         )
         {
-            logger.error("Failed to visit directory: {}" + path, exc);
+            logger.error("Failed to visit directory: {}", path, exc);
             return FileVisitResult.CONTINUE;
         }
 
@@ -298,7 +298,7 @@ public class Root {
             IOException exc
         )
         {
-            logger.error("Failed to visit file: {}" + path, exc);
+            logger.error("Failed to visit file: {}", path, exc);
             return FileVisitResult.CONTINUE;
         }
     }
