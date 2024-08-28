@@ -284,11 +284,11 @@ public class Root {
 
         @Override
         public FileVisitResult postVisitDirectory(
-            Path dir,
+            Path path,
             IOException exc
         )
         {
-            logger.error("Failed to visit directory: " + dir.toString(), exc);
+            logger.error("Failed to visit directory: {}" + path, exc);
             return FileVisitResult.CONTINUE;
         }
 
@@ -298,7 +298,7 @@ public class Root {
             IOException exc
         )
         {
-            logger.error("Failed to visit path: " + path.toString(), exc);
+            logger.error("Failed to visit file: {}" + path, exc);
             return FileVisitResult.CONTINUE;
         }
     }
