@@ -276,19 +276,50 @@ public class BasicHandler extends AbstractHandler {
 
             logger.debug("Remerging start");
 
-            WalkFileTree wft = new WalkFileTree(getSlaveObject());
             var roots = getSlaveObject().getRoots().getRootList();
+            HashMap<String, List<LightRemoteInode>> inodeTree = new HashMap<>();
+            HashMap<String, Long> lastModified = new HashMap<>();
             for (Root root : roots) {
-                wft.Walk(root.getPath());
+                root.getAllInodes(inodeTree, lastModifed, () -> !getSlaveObject().isOnline());
             }
-            List<AsyncResponseRemerge> rrs = wft.getWalkResult();
-            Slave slave = getSlaveObject();
-            for (var rr : rrs) {
-                if (!slave.isOnline()) {
-                    // Slave has shut down, no need to continue with remerge
-                    return null;
-                }
 
+            var remergeItemst = new LinkedList<AsyncResponseRemerge>();
+            inodeTree.forEach((dir, inodes) -> {
+                var lm = lastModified.getOrDefault(dir, (long)0);
+
+                inodes.sort(new Comparator<LightRemoteInode>() {
+                    public int compare(LightRemoteInode o1, LightRemoteInode o2) {
+                        return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
+                    }
+                });
+
+                var arr = new AsyncResponseRemerge(dir, inodes, lm);
+                result.add(arr);
+            });
+
+            // master expects results depth first
+            result.sort(new Comparator<AsyncResponseRemerge>() {
+                public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
+                    if (o1.getPath().equalsIgnoreCase(o2.getPath())) {
+                        return 0;
+                    }
+
+                    long s1sepcount = o1.getPath().codePoints().filter(ch -> ch == '/').count();
+                    long s2sepcount = o2.getPath().codePoints().filter(ch -> ch == '/').count();
+                    
+                    if (s1sepcount < s2sepcount) {
+                        return 1;
+                    }
+                    else if (s1sepcount > s2sepcount) {
+                        return -1;
+                    }
+                    else {
+                        return o2.getPath().compareToIgnoreCase(o1.getPath());
+                    }
+                }
+            });
+
+            for (var remergeItem : remergeItems) {
                 while (remergePaused.get() && slave.isOnline()) {
                     logger.debug("Remerging paused, sleeping");
                     synchronized (remergeWaitObj) {
@@ -301,13 +332,18 @@ public class BasicHandler extends AbstractHandler {
                     }
                 }
 
-                if (partialRemerge && rr.getLastModified() <= skipAgeCutoff) {
-                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", rr.getPath(), rr.getLastModified(), skipAgeCutoff);
+                if (partialRemerge && remergeItem.getLastModified() <= skipAgeCutoff) {
+                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", remergeItem.getPath(), remergeItemr.getLastModified(), skipAgeCutoff);
                     continue;
                 }
 
+                if (!getSlaveObject().isOnline()) {
+                    // Slave has shut down, no need to continue with remerge
+                    return null;
+                }
+
                 logger.debug("Sending {} to the master", rr.getPath());
-                sendResponse(rr);
+                sendResponse(remergeItem);
             }
 
             logger.debug("Remerging done");
@@ -603,235 +639,4 @@ public class BasicHandler extends AbstractHandler {
             return _arr;
         }
     }
-
-    public class WalkFileTree extends SimpleFileVisitor<Path>
-    {
-        private final Slave _slave;
-
-        public WalkFileTree(Slave slave)
-        {
-            _slave = slave;
-        }
-
-        private HashMap<String, BasicFileAttributes> _directories = new HashMap<String, BasicFileAttributes>();
-        private LinkedList<WalkFileTree.FileInfo> _files = new LinkedList<WalkFileTree.FileInfo>();
-
-        private Path rootPath = null;
-        private String rootPathString = null;
-
-        public List<AsyncResponseRemerge> getWalkResult() {
-            var files = new HashMap<String, List<LightRemoteInode>>();
-            var lastModified = new HashMap<String, Long>();
-
-            _directories.forEach((dir, attr) -> {
-                files.put(dir.toString(), new LinkedList<LightRemoteInode>());
-                lastModified.put(dir.toString(), attr.lastModifiedTime().toMillis());
-            });
-            for (var fi : _files) {
-                var dirFiles = files.get(fi.rootRelativeParentPath);
-                if (dirFiles == null) {
-                    dirFiles = new LinkedList<LightRemoteInode>();
-                    lastModified.put(fi.rootRelativeParentPath, (long)0);
-                }
-
-                var inode = new LightRemoteInode(
-                    fi.path.getFileName().toString(),
-                    "drftpd",
-                    "drftpd",
-                    fi.attr.isDirectory(),
-                    fi.attr.lastModifiedTime().toMillis(),
-                    fi.attr.size()
-                );
-
-                dirFiles.add(inode);
-                files.put(fi.rootRelativeParentPath, dirFiles);
-            }
-
-            var result = new LinkedList<AsyncResponseRemerge>();
-            files.forEach((dir, inodes) -> {
-                var lm = lastModified.getOrDefault(dir, (long)0);
-
-                inodes.sort(new Comparator<LightRemoteInode>() {
-                    public int compare(LightRemoteInode o1, LightRemoteInode o2) {
-                        return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
-                    }
-                });
-
-                var arr = new AsyncResponseRemerge(dir, inodes, lm);
-                result.add(arr);
-            });
-
-            // master expects results depth first
-            result.sort(new Comparator<AsyncResponseRemerge>() {
-                public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
-                    if (o1.getPath().equalsIgnoreCase(o2.getPath())) {
-                        return 0;
-                    }
-
-                    long s1sepcount = o1.getPath().codePoints().filter(ch -> ch == '/').count();
-                    long s2sepcount = o2.getPath().codePoints().filter(ch -> ch == '/').count();
-                    
-                    if (s1sepcount < s2sepcount) {
-                        return 1;
-                    }
-                    else if (s1sepcount > s2sepcount) {
-                        return -1;
-                    }
-                    else {
-                        return o2.getPath().compareToIgnoreCase(o1.getPath());
-                    }
-                }
-            });
-
-            return result;
-        }
-
-        public void Walk(String path) throws IOException {
-            rootPath = Paths.get(path).toRealPath();
-            rootPathString = rootPath.toString();
-            if (!rootPathString.endsWith(File.separator)) {
-                rootPathString = rootPathString + File.separator;
-            }
-
-            Files.walkFileTree(rootPath, this);
-        }
-
-        public String GetRootRelativePathString(Path path) throws IllegalArgumentException {
-            Path normalizedPath = path.normalize();
-            if (!normalizedPath.startsWith(rootPath)) {
-                throw new IllegalArgumentException(String.format("Path {} is not part of rootPath {}", path, rootPath));
-            }
-            return normalizedPath.toString().substring(rootPathString.length() - File.separator.length());
-        }
-
-        private void AddDir(Path dir, BasicFileAttributes attrs) {
-            String rootRelativePath = "";
-            try {
-                rootRelativePath = GetRootRelativePathString(dir);
-            }
-            catch (IllegalArgumentException e) {
-                return;
-            }
-
-            // Add parent first
-            AddDir(dir.getParent(), null);
-
-            if (attrs == null) {
-                try {
-                    attrs = Files.readAttributes(dir, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-                }
-                catch (IOException e) {
-                    logger.error("Could not read attributes for directory {}", dir, e);
-                    return;
-                }
-            }
-
-            // keep newest modified time in case directory exists in multiple roots
-            var value = _directories.get(rootRelativePath);
-            if ((value == null) && (attrs == null)) {
-                logger.error("Attributes for directory {} are missing", dir);
-                return;
-            }
-
-            if ( (value == null) || ((attrs != null) && (attrs.lastModifiedTime().compareTo(value.lastModifiedTime()) > 0)) ) {
-                _directories.put(rootRelativePath, attrs);
-            }
-        }
-
-        private class FileInfo {
-            public final Path path;
-            public final BasicFileAttributes attr;
-            public final String rootRelativePath;
-            public final String rootRelativeParentPath;
-
-            public FileInfo(Path path, BasicFileAttributes attr, String rootRelativePath, String rootRelativeParentPath) {
-                this.path = path;
-                this.attr = attr;
-                this.rootRelativePath = rootRelativePath;
-                this.rootRelativeParentPath = rootRelativeParentPath;
-            }
-        }
-
-        @Override
-        public FileVisitResult preVisitDirectory(
-            Path dir,
-            BasicFileAttributes attrs
-        )
-        {
-            try {
-                if (!_slave.isOnline()) {
-                    return FileVisitResult.TERMINATE;
-                }
-
-                String rootRelativePath = GetRootRelativePathString(dir);
-
-                AddDir(dir, attrs);
-
-                if ((rootRelativePath != "") && (rootRelativePath != "/")) {
-                    // Master expects subdirectories to appear in file list
-                    String rootRelativeParentPath = GetRootRelativePathString(dir.getParent());
-                    var fi = new FileInfo(dir, attrs, rootRelativePath, rootRelativeParentPath);
-                    _files.add(fi);
-                }
-
-                return FileVisitResult.CONTINUE;
-            }
-            catch (IllegalArgumentException e) {
-                logger.error("Error getting root relative path for {}", dir, e);
-                return FileVisitResult.TERMINATE;
-            }
-        }
-
-        @Override
-        public FileVisitResult visitFile(
-            Path file,
-            BasicFileAttributes attrs)
-        {
-            try {
-                String rootRelativePath = GetRootRelativePathString(file);
-                String rootRelativeParentPath = GetRootRelativePathString(file.getParent());
-
-                if (attrs.isSymbolicLink()) {
-                    logger.warn("You have a symbolic link {} -- these are ignored by drftpd", file);
-                }
-                else if (attrs.isRegularFile()) {
-                    AddDir(file.getParent(), null);
-
-                    var fi = new FileInfo(file, attrs, rootRelativePath, rootRelativeParentPath);
-                    _files.add(fi);
-                }
-                else if (attrs.isDirectory()) {
-                    // directory should have been added in preVisitDirectory, adding in case preVisitDirectory missed attributes
-                    AddDir(file, attrs);
-                }
-
-                return FileVisitResult.CONTINUE;
-            }
-            catch (IllegalArgumentException e) {
-                logger.error("Error getting root relative path for {}", file, e);
-                return FileVisitResult.TERMINATE;
-            }
-        }
-
-        @Override
-        public FileVisitResult postVisitDirectory(
-            Path dir,
-            IOException exc
-        )
-        {
-            logger.error("Failed to visit directory: " + dir.toString(), exc);
-            return FileVisitResult.CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult visitFileFailed(
-            Path path,
-            IOException exc
-        )
-        {
-            logger.error("Failed to visit path: " + path.toString(), exc);
-            return FileVisitResult.CONTINUE;
-        }
-    }
-
 }
