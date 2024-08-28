@@ -18,6 +18,7 @@
 package org.drftpd.slave.vfs;
 
 import org.drftpd.common.io.PhysicalFile;
+import org.drftpd.common.slave.LightRemoteInode;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -42,6 +43,8 @@ import java.util.function.BooleanSupplier;
  * @version $Id$
  */
 public class Root {
+    private static final Logger logger = LogManager.getLogger(Root.class);
+
     private static final String separator = "/";
     private final PhysicalFile _rootFile;
     private long _lastModified;
@@ -98,10 +101,10 @@ public class Root {
     public void getAllInodes(HashMap<String, List<LightRemoteInode>> inodes, HashMap<String, Long> lastModified, BooleanSupplier cancelled)
         throws IllegalArgumentException, IOException
     {
-        if (inodes == null {
+        if (inodes == null) {
             throw new IllegalArgumentException();
         }
-        var walker = new FileTreeWalker(inodes, lastmodified, cancelled);
+        var walker = new FileTreeWalker(inodes, lastModified, cancelled);
         walker.Walk(getPath());
     }
 
@@ -113,7 +116,7 @@ public class Root {
         public final String rootRelativePath;
         public final String rootRelativeParentPath;
 
-        public FileInfo(Path path, BasicFileAttributes attr, String rootRelativePath, String rootRelativeParentPath) {
+        public FileTreeInfo(Path path, BasicFileAttributes attr, String rootRelativePath, String rootRelativeParentPath) {
             this.path = path;
             this.attr = attr;
             this.rootRelativePath = rootRelativePath;
@@ -121,20 +124,19 @@ public class Root {
         }
     }
 
-    public class FileTreeWalker extends SimpleFileVisitor<Path>
-    {
-        private final HashMap<String, List<LightRemoveInode>> _inodes;
+    private class FileTreeWalker extends SimpleFileVisitor<Path> {
+        private final HashMap<String, List<LightRemoteInode>> _inodes;
         private final HashMap<String, Long> _lastModified;
         private final BooleanSupplier _cancelled;
 
-        publid FileTreeWalker(HashMap<String, List<LightRemoveInode>> inodes, HashMap<String, Long> lastModified, BooleanSupplier cancelled) {
+        public FileTreeWalker(HashMap<String, List<LightRemoteInode>> inodes, HashMap<String, Long> lastModified, BooleanSupplier cancelled) {
             _inodes = inodes;
             _lastModified = lastModified;
             _cancelled = cancelled;
         }
 
         private HashMap<String, BasicFileAttributes> _directories = new HashMap<String, BasicFileAttributes>();
-        private LinkedList<WalkFileTree.FileInfo> _files = new LinkedList<WalkFileTree.FileInfo>();
+        private LinkedList<FileTreeInfo> _files = new LinkedList<>();
 
         private Path rootPath = null;
         private String rootPathString = null;
@@ -158,7 +160,7 @@ public class Root {
                 var dirFiles = files.get(fi.rootRelativeParentPath);
                 if (dirFiles == null) {
                     dirFiles = new LinkedList<LightRemoteInode>();
-                    lastModified.put(fi.rootRelativeParentPath, (long)0);
+                    _lastModified.put(fi.rootRelativeParentPath, (long)0);
                 }
 
                 var inode = new LightRemoteInode(
@@ -226,7 +228,7 @@ public class Root {
         )
         {
             try {
-                if (!_slave.isOnline()) {
+                if (_cancelled.getAsBoolean()) {
                     return FileVisitResult.TERMINATE;
                 }
 
@@ -237,7 +239,7 @@ public class Root {
                 if ((rootRelativePath != "") && (rootRelativePath != "/")) {
                     // Master expects subdirectories to appear in file list
                     String rootRelativeParentPath = GetRootRelativePathString(dir.getParent());
-                    var fi = new FileInfo(dir, attrs, rootRelativePath, rootRelativeParentPath);
+                    var fi = new FileTreeInfo(dir, attrs, rootRelativePath, rootRelativeParentPath);
                     _files.add(fi);
                 }
 
@@ -264,7 +266,7 @@ public class Root {
                 else if (attrs.isRegularFile()) {
                     AddDir(file.getParent(), null);
 
-                    var fi = new FileInfo(file, attrs, rootRelativePath, rootRelativeParentPath);
+                    var fi = new FileTreeInfo(file, attrs, rootRelativePath, rootRelativeParentPath);
                     _files.add(fi);
                 }
                 else if (attrs.isDirectory()) {
