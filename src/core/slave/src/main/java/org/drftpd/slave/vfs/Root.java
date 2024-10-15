@@ -156,7 +156,7 @@ public class Root {
                     _inodes.put(dir, new LinkedList<LightRemoteInode>());
                 }
                 Long inodeLastModified = _lastModified.get(dir);
-                if ((inodeLastModified == null) || (inodeLastModified < attr.lastModifiedTime().toMillis()) {
+                if ((inodeLastModified == null) || (inodeLastModified < attr.lastModifiedTime().toMillis())) {
                     _lastModified.put(dir, attr.lastModifiedTime().toMillis());
                 }
             });
