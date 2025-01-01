@@ -174,6 +174,12 @@ public abstract class LinkType {
                 return true;
             }
 
+            // If a section is specified, exclude all other sections
+            // _section is always null when x.section=*
+            if (_section != null && !_section.getName().equals(section.getName())) {
+                return true;
+            }
+
             // If section is dated - ignore child dir (dated dir)
             if (!section.getBaseDirectory().equals(section.getCurrentDirectory())) {
                 if (targetDir.getParent().equals(section.getBaseDirectory())) {
