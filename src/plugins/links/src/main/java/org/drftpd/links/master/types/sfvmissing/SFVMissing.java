@@ -76,7 +76,7 @@ public class SFVMissing extends LinkType {
 
     /*
      * This loops though the files, and checks to see if any end with .sfv
-     * If one does, it creates the link, if not, it deletes the link
+     * If one does, it deletes the link, if not, it creates the link
      */
     @Override
     public void doFixLink(DirectoryHandle targetDir) {
