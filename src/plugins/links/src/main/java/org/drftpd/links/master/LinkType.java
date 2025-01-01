@@ -96,14 +96,6 @@ public abstract class LinkType {
         return _eventtype;
     }
 
-    public SectionInterface getSectionInterface() {
-        return _section;
-    }
-
-    public String getSection() {
-        return _section.getName();
-    }
-
     public String getLinkName() {
         return _linkname;
     }
@@ -154,50 +146,13 @@ public abstract class LinkType {
         return true;
     }
 
-    /*
-     * This will create the link file in the proper folder based on the .conf file
-     *
-     * It will also check and make sure it does not exist as an AddParentDir, but if it does, creates the link accordingly
-     */
-    protected void createLink(DirectoryHandle targetDir, String dirPath, String linkName) {
+    protected String getSectionName(DirectoryHandle targetDir, String dirPath) {
         SectionInterface section = GlobalContext.getGlobalContext().getSectionManager().lookup(targetDir);
         String sectionname;
+
         if (!section.getName().isEmpty()) {
-            if (targetDir.equals(section.getBaseDirectory())) {
-                // Base Section - Skip
-                return;
-            }
-
-            // If section is dated - ignore child dir (dated dir)
-            if (!section.getBaseDirectory().equals(section.getCurrentDirectory())) {
-                if (targetDir.getParent().equals(section.getBaseDirectory())) {
-                    // SubDir is the Dated Part of a section - Skip
-                    return;
-                }
-            }
-
-            // This checks if the section is excluded (regex)
-            // NOTE:  This only works if the section is a REAL section defined in sections.conf or
-            // 	    	if using section.def
-            if (section.getName().matches(getSectionExclude())) {
-                // Section is excluded
-                return;
-            }
-
-            // Save the section name for later use.
             sectionname = section.getName();
         } else {
-            // Dir isn't in a section but lets check if its at the root of the FTP
-            try {
-                if (targetDir.getParent().isRoot()) {
-                    // Parent Is Root - Skip
-                    return;
-                }
-            } catch (IllegalStateException e) {
-                // Directory Is Root - Skip
-                return;
-            }
-
             /* Since this isn't a real section name
              * Lets find out what root dir/section it is from
              */
@@ -208,11 +163,59 @@ public abstract class LinkType {
             sectionname = dir.getName();
         }
 
-        if (dirPath.matches(getExclude())) {
-            // Exempt from creation
-            return;
+        return sectionname;
+    }
+
+    protected String isExcludedSection(DirectoryHandle targetDir, String dirPath) {
+        SectionInterface section = GlobalContext.getGlobalContext().getSectionManager().lookup(targetDir);
+        if (!section.getName().isEmpty()) {
+            if (targetDir.equals(section.getBaseDirectory())) {
+                // Base Section - Skip
+                return true;
+            }
+
+            // If section is dated - ignore child dir (dated dir)
+            if (!section.getBaseDirectory().equals(section.getCurrentDirectory())) {
+                if (targetDir.getParent().equals(section.getBaseDirectory())) {
+                    // SubDir is the Dated Part of a section - Skip
+                    return true;
+                }
+            }
+
+            // This checks if the section is excluded (regex)
+            // NOTE:  This only works if the section is a REAL section defined in sections.conf or
+            // 	    	if using section.def
+            if (section.getName().matches(getSectionExclude())) {
+                // Section is excluded
+                return true;
+            }
+        } else {
+            // Dir isn't in a section but lets check if its at the root of the FTP
+            try {
+                if (targetDir.getParent().isRoot()) {
+                    // Parent Is Root - Skip
+                    return true;
+                }
+            } catch (IllegalStateException e) {
+                // Directory Is Root - Skip
+                return true;
+            }
         }
 
+        if (dirPath.matches(getExclude())) {
+            // Exempt from creation
+            return true;
+        }
+
+        return false;
+    }
+
+    /*
+     * This will create the link file in the proper folder based on the .conf file
+     *
+     * It will also check and make sure it does not exist as an AddParentDir, but if it does, creates the link accordingly
+     */
+    protected void createLink(DirectoryHandle targetDir, String dirPath, String linkName) {
         Pattern totalPat = Pattern.compile(getAddParentDir());
         Matcher totalMat = totalPat.matcher(linkName);
 
@@ -221,7 +224,7 @@ public abstract class LinkType {
             linkNameFinal = getLinkName().replace("${dirname}", dirPath.substring(dirPath.substring(0, dirPath.lastIndexOf("/")).lastIndexOf("/") + 1).replace("/", "-"));
         }
 
-        linkNameFinal = linkNameFinal.replace("${section}", sectionname);
+        linkNameFinal = linkNameFinal.replace("${section}", getSectionName(targetDir, dirPath));
 
         DirectoryHandle linkDir = new DirectoryHandle(getDirName(targetDir));
         if (!linkDir.exists()) {
@@ -278,21 +281,7 @@ public abstract class LinkType {
                 linkNameFinal = getLinkName().replace("${dirname}", dirPath.substring(dirPath.substring(0, dirPath.lastIndexOf("/")).lastIndexOf("/") + 1).replace("/", "-"));
             }
 
-            /*
-             * Get section information for link
-             */
-            SectionInterface section = GlobalContext.getGlobalContext().getSectionManager().lookup(targetDir);
-            String sectionname;
-            if (!section.getName().isEmpty()) {
-                sectionname = section.getName();
-            } else {
-                DirectoryHandle dir = targetDir.getParent();
-                while (!dir.getParent().isRoot()) {
-                    dir = dir.getParent();
-                }
-                sectionname = dir.getName();
-            }
-            linkNameFinal = linkNameFinal.replace("${section}", sectionname);
+            linkNameFinal = linkNameFinal.replace("${section}", getSectionName(targetDir, dirPath));
 
             /*
              * Find Exact Link Name
