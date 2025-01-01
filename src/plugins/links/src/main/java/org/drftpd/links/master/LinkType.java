@@ -166,7 +166,7 @@ public abstract class LinkType {
         return sectionname;
     }
 
-    protected String isExcludedSection(DirectoryHandle targetDir, String dirPath) {
+    protected boolean isExcludedSection(DirectoryHandle targetDir, String dirPath) {
         SectionInterface section = GlobalContext.getGlobalContext().getSectionManager().lookup(targetDir);
         if (!section.getName().isEmpty()) {
             if (targetDir.equals(section.getBaseDirectory())) {
