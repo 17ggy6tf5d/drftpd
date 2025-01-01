@@ -76,10 +76,14 @@ public class NFOMissing extends LinkType {
 
     /*
      * This loops though the files, and checks to see if any end with .nfo
-     * If one does, it creates the link, if not, it deletes the link
+     * If one does, it deletes the link, if not, it creates the link
      */
     @Override
     public void doFixLink(DirectoryHandle targetDir) {
+        if (isExcludedSection(targetDir, targetDir.getPath())) {
+            return;
+        }
+
         try {
             for (FileHandle file : targetDir.getFilesUnchecked()) {
                 if (file.getName().toLowerCase().endsWith(".nfo")) {

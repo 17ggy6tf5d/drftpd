@@ -65,6 +65,10 @@ public class ZipIncomplete extends LinkType {
      */
     @Override
     public void doFixLink(DirectoryHandle targetDir) {
+        if (isExcludedSection(targetDir, targetDir.getPath())) {
+            return;
+        }
+
         ZipscriptVFSDataZip zipData = new ZipscriptVFSDataZip(targetDir);
         try {
             if (zipData.getDizStatus().isFinished()) {

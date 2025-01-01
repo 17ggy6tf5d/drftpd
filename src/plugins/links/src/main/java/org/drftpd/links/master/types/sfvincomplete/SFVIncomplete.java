@@ -64,6 +64,10 @@ public class SFVIncomplete extends LinkType {
      */
     @Override
     public void doFixLink(DirectoryHandle targetDir) {
+        if (isExcludedSection(targetDir, targetDir.getPath())) {
+            return;
+        }
+
         ZipscriptVFSDataSFV sfvData = new ZipscriptVFSDataSFV(targetDir);
         try {
             if (sfvData.getSFVStatus().isFinished()) {
