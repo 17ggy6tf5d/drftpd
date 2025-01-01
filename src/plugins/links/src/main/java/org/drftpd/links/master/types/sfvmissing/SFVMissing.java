@@ -80,6 +80,10 @@ public class SFVMissing extends LinkType {
      */
     @Override
     public void doFixLink(DirectoryHandle targetDir) {
+        if (isExcludedSection(targetDir, targetDir.getPath())) {
+            return;
+        }
+
         try {
             for (FileHandle file : targetDir.getFilesUnchecked()) {
                 if (file.getName().toLowerCase().endsWith(".sfv")) {
