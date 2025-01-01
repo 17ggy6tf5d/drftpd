@@ -30,21 +30,29 @@ import org.drftpd.common.slave.ConnectInfo;
 import org.drftpd.common.slave.LightRemoteInode;
 import org.drftpd.common.slave.TransferIndex;
 import org.drftpd.common.slave.TransferStatus;
-import org.drftpd.slave.Slave;
 import org.drftpd.slave.network.*;
 import org.drftpd.slave.vfs.RootCollection;
+import org.drftpd.slave.vfs.Root;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.sql.Array;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Basic operations handling.
@@ -228,14 +236,15 @@ public class BasicHandler extends AbstractHandler {
      * 4: instantOnline (boolean)
      */
     public AsyncResponse handleRemerge(AsyncCommandArgument ac) {
-        if (_remerging.get()) {
+        // Slave Protocol central calls this with a dedicated thread which we give the lowest possible priority
+        Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
+
+        if (!_remerging.compareAndSet(false, true))
+        {
             logger.warn("Received remerge request while we are remerging");
             return new AsyncResponseException(ac.getIndex(), new Exception("Already remerging"));
         }
         try {
-            // Slave Protocol central calls this with a dedicated thread which we give the lowest possible priority
-            Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
-
             // Get the arguments for this command
             String[] argsArray = ac.getArgsArray();
             String basePath = argsArray[0];
@@ -253,15 +262,91 @@ public class BasicHandler extends AbstractHandler {
                     skipAgeCutoff += System.currentTimeMillis() - masterTime;
                 }
                 Date cutoffDate = new Date(skipAgeCutoff);
-                remergeDecision = "Instant online: disabled, Partial remerge: enabled. skipping all files last modified before " + cutoffDate.toString() + ".  Remerging with " + _pool.getMaximumPoolSize() + " threads";
+                remergeDecision = "Instant online: disabled, Partial remerge: enabled. skipping all files last modified before " + cutoffDate.toString() + ".";
             } else if (instantOnline) {
-                remergeDecision = "Instant online: enabled, Partial remerge: disabled. Remerging in background with " + _pool.getMaximumPoolSize() + " threads";
+                remergeDecision = "Instant online: enabled, Partial remerge: disabled. Remerging in background.";
             } else {
-                remergeDecision = "Instant online: disabled, Partial remerge: disabled. Remerging in foreground with " + _pool.getMaximumPoolSize() + " threads";
+                remergeDecision = "Instant online: disabled, Partial remerge: disabled. Remerging in foreground.";
             }
             logger.info(remergeDecision);
             sendResponse(new AsyncResponseSiteBotMessage(remergeDecision));
 
+            logger.debug("Remerging start");
+
+            var roots = getSlaveObject().getRoots().getRootList();
+            HashMap<String, List<LightRemoteInode>> inodeTree = new HashMap<>();
+            HashMap<String, Long> lastModified = new HashMap<>();
+            for (Root root : roots) {
+                logger.debug("Getting file list for root {}", root);
+                root.getAllInodes(inodeTree, lastModified, () -> !getSlaveObject().isOnline());
+            }
+
+            var remergeItems = new LinkedList<AsyncResponseRemerge>();
+            inodeTree.forEach((dir, inodes) -> {
+                var lm = lastModified.getOrDefault(dir, (long)0);
+
+                inodes.sort(new Comparator<LightRemoteInode>() {
+                    public int compare(LightRemoteInode o1, LightRemoteInode o2) {
+                        return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
+                    }
+                });
+
+                var arr = new AsyncResponseRemerge(dir, inodes, lm);
+                remergeItems.add(arr);
+            });
+
+            // master expects results depth first
+            remergeItems.sort(new Comparator<AsyncResponseRemerge>() {
+                public int compare(AsyncResponseRemerge o1, AsyncResponseRemerge o2) {
+                    if (o1.getPath().equalsIgnoreCase(o2.getPath())) {
+                        return 0;
+                    }
+
+                    long s1sepcount = o1.getPath().codePoints().filter(ch -> ch == '/').count();
+                    long s2sepcount = o2.getPath().codePoints().filter(ch -> ch == '/').count();
+                    
+                    if (s1sepcount < s2sepcount) {
+                        return 1;
+                    }
+                    else if (s1sepcount > s2sepcount) {
+                        return -1;
+                    }
+                    else {
+                        return o2.getPath().compareToIgnoreCase(o1.getPath());
+                    }
+                }
+            });
+
+            for (var remergeItem : remergeItems) {
+                while (remergePaused.get() && getSlaveObject().isOnline()) {
+                    logger.debug("Remerging paused, sleeping");
+                    synchronized (remergeWaitObj) {
+                        try {
+                            remergeWaitObj.wait(1000);
+                        } catch (InterruptedException e) {
+                            // Either we have been woken properly in which case we will exit the
+                            // loop or we have not in which case we will wait again.
+                        }
+                    }
+                }
+
+                if (partialRemerge && remergeItem.getLastModified() <= skipAgeCutoff) {
+                    logger.trace("Partial remerge skipping {}, lastModified {} <= cutoff {}", remergeItem.getPath(), remergeItem.getLastModified(), skipAgeCutoff);
+                    continue;
+                }
+
+                if (!getSlaveObject().isOnline()) {
+                    // Slave has shut down, no need to continue with remerge
+                    return null;
+                }
+
+                logger.debug("Sending {} to the master", remergeItem.getPath());
+                sendResponse(remergeItem);
+            }
+
+            logger.debug("Remerging done");
+            return new AsyncResponse(ac.getIndex());
+/*            
             _remerging.set(true);
             // Start with a empty list!
             mergeDepth.clear();
@@ -335,12 +420,14 @@ public class BasicHandler extends AbstractHandler {
             // Make sure we do not hog memory and clear the list
             mergeDepth.clear();
             return new AsyncResponse(ac.getIndex());
+*/
         } catch (Throwable e) {
             logger.error("Exception during merging", e);
             sendResponse(new AsyncResponseSiteBotMessage("Exception during merging"));
 
-            _remerging.set(false);
             return new AsyncResponseException(ac.getIndex(), e);
+        } finally {
+            _remerging.set(false);
         }
     }
 
@@ -489,7 +576,7 @@ public class BasicHandler extends AbstractHandler {
                     }
                 } catch (IOException e) {
                     logger.warn("You have a symbolic link that couldn't be read at {} -- these are ignored by drftpd", fullPath);
-                    sendResponse(new AsyncResponseSiteBotMessage("You have a symbolic link thacouldn't be read at " + fullPath + " -- these are ignored by drftpd"));
+                    sendResponse(new AsyncResponseSiteBotMessage("You have a symbolic link that couldn't be read at " + fullPath + " -- these are ignored by drftpd"));
                     continue;
                 }
                 if (_partialRemerge && file.lastModified() > _skipAgeCutoff) {

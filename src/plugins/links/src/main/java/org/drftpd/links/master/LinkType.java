@@ -180,6 +180,12 @@ public abstract class LinkType {
                 return true;
             }
 
+            // If a specific section is specified, ignore other sections
+            // _section is null when x.section=*
+            if (_section != null && !_section.getName().equals(section.getName())) {
+                return;
+            }
+
             // If section is dated - ignore child dir (dated dir)
             if (!section.getBaseDirectory().equals(section.getCurrentDirectory())) {
                 if (targetDir.getParent().equals(section.getBaseDirectory())) {
