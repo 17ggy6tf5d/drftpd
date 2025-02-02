@@ -89,12 +89,20 @@ public abstract class VirtualFileSystemInode implements Commitable {
     public void delete() {
         logger.info("delete({})", this);
 
+        delete(true);
+    }
+
+    public void delete(Boolean deleteFromSlaves) {
+        logger.info("delete({}) - deleteFromSlaves ({})", this, deleteFromSlaves);
+
         String path = getPath();
         VirtualFileSystem.getVirtualFileSystem().deleteInode(getPath());
         _parent.removeChild(this);
         CommitManager.getCommitManager().remove(this);
 
-        getVFS().notifyInodeDeleted(this, path);
+        if (deleteFromSlaves) {
+            getVFS().notifyInodeDeleted(this, path);
+        }
     }
 
     /**

@@ -128,8 +128,13 @@ public class FileHandle extends InodeHandle implements FileHandleInterface {
      */
     public long getCheckSum() throws NoAvailableSlaveException,
             FileNotFoundException {
+        return getCheckSum(true);
+    }
+
+    public long getCheckSum(Boolean getMissingCheckSumFromSlave) throws NoAvailableSlaveException,
+            FileNotFoundException {
         long checksum = getInode().getChecksum();
-        if (checksum == 0L) {
+        if (checksum == 0L && getMissingCheckSumFromSlave) {
             return getCheckSumFromSlave();
         }
         return checksum;

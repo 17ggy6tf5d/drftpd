@@ -152,7 +152,8 @@ public class VirtualFileSystemFile extends VirtualFileSystemInode implements Sta
             getParent().decrementSlaveRefCount(rslave);
         }
         if (isEmpty) {
-            delete();
+            logger.debug("Removed last slave {} from vfs item {}. As this was the last slave with the file, do not send delete event to any slaves.", rslave, _name);
+            delete(false);
         } else if (removed) {
             commit();
             getVFS().notifySlavesChanged(this, _slaves);
