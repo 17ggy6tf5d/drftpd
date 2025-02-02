@@ -21,11 +21,15 @@ import java.net.InetAddress;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * @author mog
  * @version $Id$
  */
 public class HostMask {
+    private static final Logger logger = LogManager.getLogger(HostMask.class);
 
     private String _hostMask;
 
@@ -82,6 +86,8 @@ public class HostMask {
 
     public boolean matchesHost(InetAddress a) throws PatternSyntaxException {
         Pattern p = GlobPattern.compile(getHostMask());
+
+        logger.trace("matchesHost: pattern={}, address={}", p.pattern(), a.getHostAddress());
 
         return (p.matcher(a.getHostAddress()).matches() || p.matcher(a.getHostName()).matches());
     }

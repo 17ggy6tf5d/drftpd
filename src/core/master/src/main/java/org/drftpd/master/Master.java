@@ -317,7 +317,11 @@ public class Master {
 
             // If we have 0 matched hostmasks handle it quickly
             if (masks.size() < 1) {
-                logger.warn("Closing connecting as it is not allowed based on existing hostmasks");
+                if (GlobalContext.getConfig().getHideIps()) {
+                    logger.warn("Closing connectinon from <iphidden> as it is not allowed based on existing hostmasks");
+                } else {
+                    logger.warn("Closing connectinon from {} as it is not allowed based on existing hostmasks", sock.getInetAddress().getHostAddress());
+                }
                 sock.close();
                 return;
             }
