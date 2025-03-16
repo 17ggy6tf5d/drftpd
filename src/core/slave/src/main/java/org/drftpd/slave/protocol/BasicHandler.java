@@ -282,8 +282,7 @@ public class BasicHandler extends AbstractHandler {
                 Root.DirectoryContent dirContent = node.getValue();
 
                 // Create a sorted list of inodes
-                // -directories before files
-                // -ordered alphabetically, case insensitive
+                // ordered alphabetically, case insensitive
                 List<LightRemoteInode> sortedInodes = new ArrayList<LightRemoteInode>();
                 dirContent.inodes.forEach((name, attr) -> {
                     var inode = new LightRemoteInode(
@@ -300,14 +299,7 @@ public class BasicHandler extends AbstractHandler {
 
                 sortedInodes.sort(new Comparator<LightRemoteInode>() {
                     public int compare(LightRemoteInode o1, LightRemoteInode o2) {
-                        if (o1.isDirectory() && !o2.isDirectory()) {
-                            return -1;
-                        }
-                        else if (!o1.isDirectory() && o2.isDirectory()) {
-                            return 1;
-                        } else {
-                            return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
-                        }
+                        return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
                     }
                 });
 
