@@ -332,9 +332,9 @@ public class ListHandler extends CommandInterface {
                     }
 
                     try {
-                        if (isFileHandle && (file == null))
+                        if (file == null)
                         {
-                            logger.warn("isFileHandle but file is null: {}", filename);
+                            logger.warn("file is null: {}", filename);
                         }
                         else
                         {
