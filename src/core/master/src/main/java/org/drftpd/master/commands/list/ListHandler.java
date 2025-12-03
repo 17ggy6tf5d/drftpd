@@ -332,9 +332,16 @@ public class ListHandler extends CommandInterface {
                     }
 
                     try {
-                        long checksum = file.getCheckSum(false);
-                        if (isFileHandle && checksum != 0) {
-                            line.append("x.crc32=" + Checksum.formatChecksum(checksum) + ";");
+                        if (isFileHandle && (file == null))
+                        {
+                            logger.warn("isFileHandle but file is null: {}", filename);
+                        }
+                        else
+                        {
+                            long checksum = file.getCheckSum(false);
+                            if (isFileHandle && checksum != 0) {
+                                line.append("x.crc32=" + Checksum.formatChecksum(checksum) + ";");
+                            }
                         }
                     } catch (NoAvailableSlaveException e) {
                         logger.debug("Unable to fetch checksum for: {}", inode.getPath());
